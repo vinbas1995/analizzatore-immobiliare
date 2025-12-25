@@ -1,106 +1,92 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import google.generativeai as genai
-import json
-import plotly.graph_objects as go
-from fpdf import FPDF
+import pytesseract
+from PIL import Image
 import io
+import google.generativeai as genai
+from fpdf import FPDF
 
-# --- CONFIGURAZIONE SICURA ---
-if "GEMINI_API_KEY" in st.secrets:
-    try:
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    except Exception as e:
-        st.error(f"Errore configurazione API: {e}")
-else:
-    st.error("Inserisci GEMINI_API_KEY nei Secrets di Streamlit.")
-    st.stop()
+# --- CONFIGURAZIONE CORE ---
+GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
+genai.configure(api_key=GEMINI_API_KEY)
 
-st.set_page_config(page_title="AstaSicura.it | Audit", layout="wide")
+st.set_page_config(page_title="ASTA-SAFE AI Pro", layout="wide", page_icon="⚖️")
 
-# --- CSS MINIMALE PROFESSIONALE ---
-st.markdown("<style>.stMetric {background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #1e3a8a; shadow: 0 2px 4px rgba(0,0,0,0.1);}</style>", unsafe_allow_html=True)
+# --- FUNZIONI TECNICHE ---
 
-def estrai_testo(file_pdf):
-    try:
-        file_bytes = file_pdf.read()
-        doc = fitz.open(stream=file_bytes, filetype="pdf")
-        testo = ""
-        for pagina in doc[:25]: # Analizza fino a 25 pagine
-            testo += pagina.get_text()
-        doc.close()
-        return testo.strip() if len(testo.strip()) > 10 else None
-    except Exception as e:
-        st.error(f"Errore lettura file: {e}")
-        return None
+def estrai_testo_ocr(file_pdf):
+    """Estrae testo e gestisce PDF scannerizzati tramite OCR."""
+    doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
+    testo_risultato = ""
+    for pagina in doc:
+        t = pagina.get_text()
+        if len(t) < 150: 
+            pix = pagina.get_pixmap()
+            img = Image.open(io.BytesIO(pix.tobytes()))
+            t = pytesseract.image_to_string(img, lang='ita')
+        testo_risultato += t
+    return testo_risultato
 
-def crea_pdf_bytes(dati):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(190, 10, "REPORT ASTASICURA.IT", ln=True, align="C")
-    pdf.ln(10)
-    pdf.set_font("Arial", "", 12)
-    # Sostituiamo caratteri non-latin1 per evitare crash del PDF
-    sintesi_pulita = dati['sintesi'].encode('latin-1', 'replace').decode('latin-1')
-    pdf.multi_cell(190, 10, f"Sintesi: {sintesi_pulita}")
-    return pdf.output(dest='S').encode('latin-1', 'ignore')
+class ReportPDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, 'REPORT VALUTAZIONE ASTA GIUDIZIARIA', 0, 1, 'C')
+        self.ln(10)
 
-# --- UI ---
-st.title("⚖️ Portale Analisi AstaSicura.it")
-file_caricato = st.file_uploader("Carica CTU (PDF)", type="pdf")
+# --- INTERFACCIA UTENTE ---
+st.title("🛡️ ASTA-SAFE AI: Analizzatore Pericolosità")
+st.markdown("### Calcolo Benchmark di Rischio per Aste Immobiliari")
 
-if file_caricato:
-    if st.button("ESEGUI AUDIT"):
-        testo_perizia = estrai_testo(file_caricato)
-        
-        if not testo_perizia:
-            st.warning("⚠️ Il documento sembra essere una scansione (immagine) o è protetto. L'analisi potrebbe essere meno precisa.")
-            testo_perizia = "Analizza questo documento (scansione manuale richiesta)."
+with st.sidebar:
+    st.header("Parametri Economici")
+    prezzo_base = st.number_input("Prezzo Base d'Asta (€)", min_value=0, value=100000)
+    offerta_min = st.number_input("Offerta Minima (€)", min_value=0, value=75000)
+    st.divider()
+    st.caption("Il sistema calcola la pericolosità incrociando i dati CTU con i rischi di mercato.")
 
+uploaded_file = st.file_uploader("Carica la Perizia (PDF)", type="pdf")
+
+if uploaded_file:
+    if st.button("🚀 AVVIA ANALISI BENCHMARK"):
         try:
-            with st.spinner("Analisi in corso..."):
-                model = genai.GenerativeModel("gemini-1.5-flash")
+            with st.spinner("L'IA sta analizzando i benchmark di rischio..."):
+                # 1. Estrazione Testo
+                testo_perizia = estrai_testo_ocr(uploaded_file)
                 
-                # Prompt con istruzioni di salvataggio
+                # 2. Modello AI
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # 3. Prompt Benchmark
                 prompt = f"""
-                Analizza questa perizia per AstaSicura.it e restituisci JSON:
-                {{ "urbano": 5, "occupazione": 5, "legale": 5, "costi": 5, "sintesi": "testo", "verdetto": "testo" }}
-                Usa numeri da 0 a 10.
-                Testo: {testo_perizia[:30000]}
+                Analizza questa perizia per asta giudiziaria e genera i seguenti BENCHMARK DI PERICOLOSITÀ (voto 1-10):
+                
+                - RISCHIO URBANISTICO: Gravità abusi e costi ripristino.
+                - RISCHIO OCCUPAZIONE: Stato immobile e tempi di liberazione.
+                - RISCHIO LEGALE: Vincoli non cancellabili e servitù.
+                - RISCHIO ECONOMICO: Oneri condominiali e sanzioni.
+                
+                Dati asta: Base €{prezzo_base}, Minima €{offerta_min}.
+                Fornisci una tabella riassuntiva dei voti e un'analisi dettagliata.
+                
+                Testo: {testo_perizia[:15000]}
                 """
                 
-                response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+                response = model.generate_content(prompt)
+                analisi_testo = response.text
+
+                # 4. Risultati a Video
+                st.divider()
+                st.subheader("📊 Analisi Rischi e Benchmark")
+                st.markdown(analisi_testo)
                 
-                # Debug della risposta
-                if not response.text:
-                    st.error("L'IA non ha restituito dati. Riprova.")
-                else:
-                    dati = json.loads(response.text)
+                # 5. Export PDF
+                pdf = ReportPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=11)
+                pdf.multi_cell(0, 10, txt=analisi_testo.encode('latin-1', 'ignore').decode('latin-1'))
+                pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                
+                st.download_button(label="📥 Scarica Report PDF", data=pdf_bytes, file_name="Analisi_Asta.pdf")
 
-                    # Visualizzazione
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Urbanistico", f"{dati['urbano']}/10")
-                    c2.metric("Occupazione", f"{dati['occupazione']}/10")
-                    c3.metric("Legale", f"{dati['legale']}/10")
-                    c4.metric("Oneri", f"{dati['costi']}/10")
-
-                    st.info(f"**Verdetto:** {dati['verdetto']}")
-                    st.write(dati['sintesi'])
-                    
-                    # Grafico Radar
-                    fig = go.Figure(data=go.Scatterpolar(
-                        r=[dati['urbano'], dati['occupazione'], dati['legale'], dati['costi'], dati['urbano']],
-                        theta=['Urbano','Occupazione','Legale','Costi','Urbano'],
-                        fill='toself', fillcolor='rgba(30, 58, 138, 0.2)', line=dict(color='#1e3a8a')
-                    ))
-                    st.plotly_chart(fig)
-
-                    # Download
-                    pdf_out = crea_pdf_bytes(dati)
-                    st.download_button("📥 Scarica Report PDF", pdf_out, "Analisi.pdf", "application/pdf")
-
-        except json.JSONDecodeError:
-            st.error("Errore nella formattazione dei dati ricevuti. Riprova.")
         except Exception as e:
-            st.error(f"Errore Audit: {str(e)}")
+            st.error(f"Errore durante l'analisi: {e}")

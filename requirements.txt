@@ -1,0 +1,6 @@
+streamlit
+pymupdf
+pytesseract
+pillow
+google-generativeai
+fpdf2

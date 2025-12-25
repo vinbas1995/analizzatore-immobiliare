@@ -6,26 +6,19 @@ import io
 import google.generativeai as genai
 from fpdf import FPDF
 
-# --- CONFIGURAZIONE API GEMINI ---
-# ATTENZIONE: Chiave inserita direttamente come richiesto
+# --- CHIAVE API GIÀ INTEGRATA ---
 GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="Analizzatore Perizie Immobiliare PRO", layout="wide")
-
-class ReportPDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 14)
-        self.cell(0, 10, 'REPORT TECNICO ANALISI PERIZIA - AI GENERATIVE', 0, 1, 'C')
-        self.ln(5)
+# Configurazione Pagina
+st.set_page_config(page_title="Analizzatore Immobiliare PRO", layout="wide")
 
 def estrai_testo_documento(file_pdf):
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
     testo_totale = ""
     for pagina in doc:
         testo_pag = pagina.get_text()
-        if len(testo_pag) < 100: # Se la pagina è una scansione/immagine
+        if len(testo_pag) < 100: 
             pix = pagina.get_pixmap()
             img = Image.open(io.BytesIO(pix.tobytes()))
             testo_pag = pytesseract.image_to_string(img, lang='ita')
@@ -34,52 +27,43 @@ def estrai_testo_documento(file_pdf):
 
 # --- INTERFACCIA ---
 st.title("⚖️ Valutatore Perizie Immobiliare (Google Gemini AI)")
-st.info("Sistema configurato con Chiave API dedicata. Pronto all'analisi.")
+st.success("✅ Intelligenza Artificiale collegata con successo.")
 
-file_caricato = st.file_uploader("Carica la perizia giudiziaria (PDF)", type="pdf")
+# Caricamento file
+file_caricato = st.file_uploader("Trascina qui la perizia giudiziaria (PDF)", type="pdf")
 
 if file_caricato:
-    if st.button("Analizza con Intelligenza Artificiale"):
+    # Mostriamo il tasto solo dopo che il file è stato caricato
+    if st.button("🚀 AVVIA ANALISI INTELLIGENTE"):
         try:
-            with st.spinner("L'IA sta studiando il documento (estrazione testo + analisi)..."):
+            with st.spinner("Analisi in corso... attendi qualche secondo."):
                 # 1. Estrazione testo
                 contenuto = estrai_testo_documento(file_caricato)
                 
-                # 2. Configurazione Modello
+                # 2. Modello AI
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                # 3. Prompt Specializzato
+                # 3. Istruzioni per l'IA
                 prompt = f"""
-                Analizza questa perizia immobiliare e fornisci un report professionale:
+                Analizza questa perizia immobiliare italiana e fornisci:
                 - PUNTEGGIO PERICOLOSITÀ (0-100).
-                - ANALISI CRITICITÀ (Urbanistiche, catastali, legali).
-                - STIMA COSTI DI SANATORIA O RIPRISTINO.
-                - CONCLUSIONE: L'immobile è un buon investimento o presenta troppi rischi?
+                - LISTA CRITICITÀ (Urbanistiche, catastali, ipoteche).
+                - STIMA COSTI DI SANATORIA.
+                - GIUDIZIO FINALE: L'acquisto è sicuro?
                 
                 Testo della perizia:
                 {contenuto[:15000]}
                 """
                 
-                # 4. Generazione Analisi
+                # 4. Generazione
                 risposta = model.generate_content(prompt)
-                risultato_ai = risposta.text
-
-                # 5. Visualizzazione
-                st.subheader("📊 Risultato dell'Analisi")
-                st.markdown(risultato_ai)
                 
-                # 6. Generazione PDF per Download
-                pdf = ReportPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=11)
-                pdf.multi_cell(0, 10, txt=risultato_ai.encode('latin-1', 'ignore').decode('latin-1'))
-                pdf_output = pdf.output(dest='S').encode('latin-1')
+                # 5. Risultato a schermo
+                st.divider()
+                st.subheader("📝 Esito dell'Analisi")
+                st.markdown(risposta.text)
                 
-                st.download_button(
-                    label="📥 Scarica Report PDF",
-                    data=pdf_output,
-                    file_name="Analisi_Perizia_AI.pdf",
-                    mime="application/pdf"
-                )
         except Exception as e:
-            st.error(f"Si è verificato un errore: {e}")
+            st.error(f"Errore tecnico: {e}")
+else:
+    st.info("👋 Benvenuto! Carica un file PDF per iniziare la valutazione.")

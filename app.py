@@ -6,79 +6,80 @@ import io
 import google.generativeai as genai
 from fpdf import FPDF
 
+# --- CONFIGURAZIONE API GEMINI ---
+# ATTENZIONE: Chiave inserita direttamente come richiesto
+GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
+genai.configure(api_key=GEMINI_API_KEY)
+
 # --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="Perizia AI Pro - Analisi Immobiliare", layout="wide")
+st.set_page_config(page_title="Analizzatore Perizie Immobiliare PRO", layout="wide")
 
-# --- FUNZIONI DI SERVIZIO ---
-def genera_pdf_report(analisi_testo):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 10, txt=f"REPORT ANALISI PERIZIA IMMOBILIARE\n\n{analisi_testo}")
-    return pdf.output(dest='S').encode('latin-1', errors='ignore')
+class ReportPDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 14)
+        self.cell(0, 10, 'REPORT TECNICO ANALISI PERIZIA - AI GENERATIVE', 0, 1, 'C')
+        self.ln(5)
 
-def estrai_testo_completo(file_pdf):
+def estrai_testo_documento(file_pdf):
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
-    testo = ""
+    testo_totale = ""
     for pagina in doc:
         testo_pag = pagina.get_text()
-        if len(testo_pag) < 100: # Se la pagina è un'immagine/scansione
+        if len(testo_pag) < 100: # Se la pagina è una scansione/immagine
             pix = pagina.get_pixmap()
             img = Image.open(io.BytesIO(pix.tobytes()))
             testo_pag = pytesseract.image_to_string(img, lang='ita')
-        testo += testo_pag
-    return testo
+        testo_totale += testo_pag
+    return testo_totale
 
-# --- INTERFACCIA UTENTE ---
-st.title("🛡️ Analizzatore Immobiliare con AI Gemini")
-st.markdown("Analisi legale e tecnica automatizzata delle perizie giudiziarie.")
+# --- INTERFACCIA ---
+st.title("⚖️ Valutatore Perizie Immobiliare (Google Gemini AI)")
+st.info("Sistema configurato con Chiave API dedicata. Pronto all'analisi.")
 
-st.sidebar.header("Configurazione AI")
-api_key = st.sidebar.text_input("AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88", type="password")
+file_caricato = st.file_uploader("Carica la perizia giudiziaria (PDF)", type="pdf")
 
-file_caricato = st.file_uploader("Carica la perizia (PDF)", type="pdf")
-
-if file_caricato and api_key:
-    if st.button("Avvia Analisi Intelligente"):
+if file_caricato:
+    if st.button("Analizza con Intelligenza Artificiale"):
         try:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
-            with st.spinner("L'AI sta leggendo e analizzando il documento..."):
-                # 1. Estrazione testo (con OCR automatico)
-                testo_perizia = estrai_testo_completo(file_caricato)
+            with st.spinner("L'IA sta studiando il documento (estrazione testo + analisi)..."):
+                # 1. Estrazione testo
+                contenuto = estrai_testo_documento(file_caricato)
                 
-                # 2. Prompt per l'AI
+                # 2. Configurazione Modello
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # 3. Prompt Specializzato
                 prompt = f"""
-                Agisci come un esperto legale e tecnico immobiliare. 
-                Analizza il seguente testo di una perizia e fornisci:
-                1. PUNTEGGIO DI PERICOLOSITÀ (0-100).
-                2. ELENCO CRITICITÀ: (Urbanistiche, Catastali, Legali, Edilizie).
-                3. STIMA COSTI: Una stima dei costi per sanare i problemi trovati.
-                4. VERDETTO: L'immobile è mutuabile e sicuro? 
+                Analizza questa perizia immobiliare e fornisci un report professionale:
+                - PUNTEGGIO PERICOLOSITÀ (0-100).
+                - ANALISI CRITICITÀ (Urbanistiche, catastali, legali).
+                - STIMA COSTI DI SANATORIA O RIPRISTINO.
+                - CONCLUSIONE: L'immobile è un buon investimento o presenta troppi rischi?
                 
                 Testo della perizia:
-                {testo_perizia[:15000]}
+                {contenuto[:15000]}
                 """
                 
-                # 3. Chiamata a Gemini
-                response = model.generate_content(prompt)
-                analisi_ai = response.text
+                # 4. Generazione Analisi
+                risposta = model.generate_content(prompt)
+                risultato_ai = risposta.text
 
-                # 4. Visualizzazione Risultati
-                st.divider()
-                st.subheader("📝 Resoconto dell'Intelligenza Artificiale")
-                st.markdown(analisi_ai)
+                # 5. Visualizzazione
+                st.subheader("📊 Risultato dell'Analisi")
+                st.markdown(risultato_ai)
                 
-                # 5. Download Report
-                pdf_output = genera_pdf_report(analisi_ai)
+                # 6. Generazione PDF per Download
+                pdf = ReportPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=11)
+                pdf.multi_cell(0, 10, txt=risultato_ai.encode('latin-1', 'ignore').decode('latin-1'))
+                pdf_output = pdf.output(dest='S').encode('latin-1')
+                
                 st.download_button(
-                    label="📥 Scarica Report in PDF",
+                    label="📥 Scarica Report PDF",
                     data=pdf_output,
-                    file_name="Analisi_AI_Perizia.pdf",
+                    file_name="Analisi_Perizia_AI.pdf",
                     mime="application/pdf"
                 )
         except Exception as e:
-            st.error(f"Errore durante l'analisi: {e}")
-elif not api_key:
-    st.info("Inserisci la tua API Key nella barra laterale per attivare l'intelligenza artificiale.")
+            st.error(f"Si è verificato un errore: {e}")

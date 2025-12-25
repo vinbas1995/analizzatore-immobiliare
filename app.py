@@ -17,7 +17,6 @@ st.set_page_config(
 )
 
 # --- 2. API KEY ---
-# Assicurati che questa chiave sia attiva su Google AI Studio
 GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -44,7 +43,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 4. FUNZIONI ---
-
 def render_header():
     st.markdown("""
         <div class="web-header">
@@ -76,15 +74,29 @@ def estrai_pdf(file, tipo):
         doc = fitz.open(stream=file.read(), filetype="pdf")
         for page in doc:
             t = page.get_text()
-            if len(t) < 50:
-                try:
-                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-                    img = Image.open(io.BytesIO(pix.tobytes()))
-                    t = pytesseract.image_to_string(img, lang='ita')
-                except: pass
             text += t
     except: return f"Errore lettura {tipo}"
     return f"\n\n--- DOCUMENTO: {tipo} ---\n{text[:15000]}"
+
+def trova_modello_disponibile():
+    """Cerca un modello valido supportato dalla tua versione API"""
+    try:
+        modelli = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Priorità di scelta
+        preferiti = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']
+        
+        for p in preferiti:
+            if p in modelli:
+                return p
+        
+        # Se non trova i preferiti, prende il primo disponibile
+        if modelli:
+            return modelli[0]
+        else:
+            return None
+    except Exception as e:
+        return None
 
 # --- 5. APP LOGIC ---
 
@@ -113,7 +125,16 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 if f_perizia or f_plan or f_avviso or f_catasto:
     if st.button("🚀 ANALIZZA DOCUMENTI CON IA"):
-        with st.spinner("Analisi incrociata in corso..."):
+        with st.spinner("Ricerca modello AI e analisi in corso..."):
+            
+            # --- SELEZIONE MODELLO DINAMICA ---
+            nome_modello = trova_modello_disponibile()
+            
+            if not nome_modello:
+                st.error("ERRORE: La tua API Key non trova nessun modello disponibile. Verifica la chiave o aggiorna la libreria `pip install -U google-generativeai`")
+                st.stop()
+            
+            # st.info(f"Usando il modello: {nome_modello}") # Decommenta per vedere quale usa
             
             testo_totale = ""
             testo_totale += estrai_pdf(f_perizia, "PERIZIA")
@@ -121,30 +142,15 @@ if f_perizia or f_plan or f_avviso or f_catasto:
             testo_totale += estrai_pdf(f_avviso, "AVVISO")
             testo_totale += estrai_pdf(f_catasto, "CATASTO")
             
-            # --- FIX ERRORE MODELLO ---
-            # Qui proviamo diversi nomi di modello per evitare il 404
             try:
-                model = genai.GenerativeModel("gemini-1.5-flash") # Prova 1 (Nuovo)
-            except:
-                try:
-                    model = genai.GenerativeModel("gemini-pro") # Prova 2 (Standard)
-                except:
-                    st.error("Errore critico API: Nessun modello accessibile con questa chiave.")
-                    st.stop()
-
-            try:
+                model = genai.GenerativeModel(nome_modello)
+                
                 prompt = f"""
                 Analizza questi documenti di un'asta immobiliare.
-                
-                OUTPUT RICHIESTO (JSON + MARKDOWN):
-                Separati dalla stringa "###SEP###".
+                OUTPUT RICHIESTO (JSON + MARKDOWN) separati da "###SEP###".
                 
                 PARTE 1: JSON puro. Chiavi: "urb" (urbanistica), "occ" (occupazione), "leg" (legale), "eco" (economico). Voti 1-10.
-                
-                PARTE 2: Report Markdown.
-                - Sintesi rischi.
-                - Discrepanze.
-                - Calcolo convenienza (Base: {base}€).
+                PARTE 2: Report Markdown. Sintesi rischi, discrepanze e calcolo convenienza (Base: {base}€).
                 
                 TESTO: {testo_totale[:30000]}
                 """

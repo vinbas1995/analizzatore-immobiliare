@@ -12,23 +12,25 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 st.set_page_config(page_title="ASTA-SAFE AI Pro", layout="wide")
 
+# --- FUNZIONE PULIZIA TESTO PER PDF ---
 def clean_text(text):
-    """Rimuove caratteri non compatibili con il formato PDF standard"""
+    """Rimuove caratteri che mandano in crash la creazione del PDF"""
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def estrai_testo_ottimizzato(file_pdf):
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
     testo_risultato = ""
+    # Analizziamo max 30 pagine per evitare crash di memoria
     for i, pagina in enumerate(doc):
         if i > 30: break 
         t = pagina.get_text()
         if len(t) < 150: 
             try:
-                pix = pagina.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                pix = pagina.get_pixmap(matrix=fitz.Matrix(1.5, 1.5)) # Bilanciamento qualità/velocità
                 img = Image.open(io.BytesIO(pix.tobytes()))
                 t = pytesseract.image_to_string(img, lang='ita')
             except:
-                t = "[Errore OCR]"
+                t = "[Errore OCR su questa pagina]"
         testo_risultato += t
     return testo_risultato
 
@@ -45,14 +47,16 @@ uploaded_file = st.file_uploader("Carica Perizia CTU (PDF)", type="pdf")
 if uploaded_file:
     if st.button("🚀 GENERA ANALISI BENCHMARK"):
         try:
-            with st.spinner("L'IA sta elaborando i dati..."):
-                # 1. Modello AI
-                model = genai.GenerativeModel('gemini-1.5-flash')
+            with st.spinner("Estrazione testo e analisi AI in corso..."):
+                # 1. Selezione Modello Dinamica
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                modello_scelto = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
+                model = genai.GenerativeModel(modello_scelto)
                 
                 # 2. Estrazione
                 testo_perizia = estrai_testo_ottimizzato(uploaded_file)
                 
-                # 3. Prompt
+                # 3. Prompt Strategico
                 prompt = f"""
                 Analizza questa perizia per asta giudiziaria italiana. 
                 Genera questi BENCHMARK DI PERICOLOSITÀ (voto 1-10):
@@ -61,6 +65,7 @@ if uploaded_file:
                 - LEGALE (Vincoli/Servitù)
                 - ECONOMICO (Condominio/Sanzioni)
                 
+                Dati asta: Base €{prezzo_base}, Minima €{offerta_min}.
                 Testo: {testo_perizia[:15000]}
                 """
                 
@@ -69,29 +74,16 @@ if uploaded_file:
 
                 # 4. Risultati a Video
                 st.divider()
-                st.subheader("📝 Esito dell'Analisi")
+                st.success(f"Analisi completata (Modello: {modello_scelto})")
                 st.markdown(analisi_testo)
                 
-                # 5. Export PDF (CORRETTO)
+                # 5. Export PDF Pro
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Arial", size=12)
-                # Puliamo il testo prima di inserirlo
-                testo_pulito = clean_text(analisi_testo)
-                pdf.multi_cell(0, 10, txt=testo_pulito)
-                
-                # Generiamo i byte del PDF
-                pdf_output = pdf.output(dest='S')
-                
-                # Convertiamo in bytes se necessario (fpdf2 restituisce bytearray o bytes)
-                pdf_bytes = bytes(pdf_output)
-                
-                st.download_button(
-                    label="📥 Scarica Report PDF",
-                    data=pdf_bytes,
-                    file_name="Analisi_Asta.pdf",
-                    mime="application/pdf"
-                )
+                pdf.multi_cell(0, 10, txt=clean_text(analisi_testo))
+                pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                st.download_button("📥 Scarica Report PDF", data=pdf_bytes, file_name="Analisi_Asta.pdf")
 
         except Exception as e:
             st.error(f"Errore: {e}")

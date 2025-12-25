@@ -4,3 +4,6 @@ pytesseract
 pillow
 google-generativeai
 fpdf2
+google-generativeai
+pymupdf
+plotly

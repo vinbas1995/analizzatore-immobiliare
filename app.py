@@ -1,62 +1,60 @@
 import streamlit as st
-import fitz
+import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
 import io
 import google.generativeai as genai
+from fpdf import FPDF
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURAZIONE CORE ---
 GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
-st.set_page_config(page_title="ASTA-SAFE AI", layout="wide")
+# Configurazione Pagina Streamlit
+st.set_page_config(page_title="ASTA-SAFE AI Pro", layout="wide", page_icon="⚖️")
 
-def estrai_testo(file_pdf):
+# --- FUNZIONI TECNICHE ---
+
+def estrai_testo_ocr(file_pdf):
+    """Estrae testo e gestisce PDF scannerizzati tramite OCR."""
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
-    testo = ""
+    testo_finale = ""
     for pagina in doc:
         t = pagina.get_text()
-        if len(t) < 100:
+        if len(t) < 150: # Se la pagina sembra un'immagine
             pix = pagina.get_pixmap()
             img = Image.open(io.BytesIO(pix.tobytes()))
             t = pytesseract.image_to_string(img, lang='ita')
-        testo += t
-    return testo
+        testo_finale += t
+    return testo_totale if 'testo_totale' in locals() else testo_finale
 
-# --- INTERFACCIA ---
-st.title("⚖️ ASTA-SAFE AI: Valutazione Rischio Giudiziario")
-st.sidebar.info("Modello: Gemini 1.5 Real-Time Analysis")
+class ReportPDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, 'VALUTAZIONE PROFESSIONALE ASTA GIUDIZIARIA', 0, 1, 'C')
+        self.ln(10)
 
-file_caricato = st.file_uploader("Carica Perizia CTU (PDF)", type="pdf")
+# --- INTERFACCIA UTENTE ---
+st.title("🛡️ ASTA-SAFE AI: Analizzatore Pericolosità Immobili")
+st.markdown("### Analisi Multidimensionale della Perizia CTU")
 
-if file_caricato:
-    if st.button("🔍 ANALIZZA BENCHMARK DI RISCHIO"):
+with st.sidebar:
+    st.header("Parametri Asta")
+    prezzo_base = st.number_input("Prezzo Base d'Asta (€)", min_value=0, value=100000, step=5000)
+    offerta_min = st.number_input("Offerta Minima (€)", min_value=0, value=75000, step=5000)
+    st.divider()
+    st.info("L'IA utilizzerà questi dati per calcolare la convenienza economica dell'operazione.")
+
+uploaded_file = st.file_uploader("Carica la Perizia (PDF)", type="pdf")
+
+if uploaded_file:
+    if st.button("🚀 GENERA BENCHMARK E ANALISI RISCHI"):
         try:
-            with st.spinner("L'IA sta calcolando i benchmark di pericolosità..."):
-                contenuto = estrai_testo(file_caricato)
+            with st.spinner("Estrazione dati e consultazione AI in corso..."):
+                # 1. Estrazione Testo
+                testo_perizia = estrai_testo_ocr(uploaded_file)
                 
-                # Selezione dinamica modello
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                target_model = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
-                model = genai.GenerativeModel(target_model)
+                # 2. Selezione Modello
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                prompt = f"""
-                Analizza questa perizia per un'asta immobiliare e compila rigorosamente questi benchmark:
-                1. RISCHIO URBANISTICO (0-10): Gravità degli abusi (sanabili vs non sanabili).
-                2. RISCHIO OCCUPAZIONE (0-10): Stato dell'immobile (libero, occupato dal debitore, occupato con titolo opponibile).
-                3. RISCHIO LEGALE (0-10): Presenza di domande giudiziali o vincoli non cancellabili.
-                4. COSTI OCCULTI (0-10): Spese condominiali insolute o sanzioni sanatoria elevate.
-
-                Fornisci il risultato in questo formato:
-                - PUNTEGGIO TOTALE DI PERICOLOSITÀ
-                - TABELLA DEI BENCHMARK
-                - ANALISI DETTAGLIATA PER OGNI PUNTO.
-                
-                Testo: {contenuto[:18000]}
-                """
-                
-                response = model.generate_content(prompt)
-                
-                # --- VISUALIZZAZIONE RISULTATI ---
-                st.divider()
-                st.subheader("
+                # 3.

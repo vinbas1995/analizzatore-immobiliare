@@ -1,74 +1,125 @@
 import streamlit as st
-import fitz
-import pytesseract
-from PIL import Image
-import io
+import fitz  # PyMuPDF
 import google.generativeai as genai
+import json
+import plotly.graph_objects as go
 
-# --- CONFIGURAZIONE ---
-GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
+# --- CONFIGURAZIONE BRANDING ---
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
 
-st.set_page_config(page_title="ASTA-SAFE AI", layout="wide")
+st.set_page_config(
+    page_title="AstaSicura.it - Analisi Professionale",
+    page_icon="⚖️",
+    layout="wide"
+)
+
+# Custom CSS per stile istituzionale
+st.markdown("""
+    <style>
+    .main { background-color: #f4f7f9; }
+    .stMetric { 
+        background-color: #ffffff; 
+        padding: 20px; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #d1d5db;
+    }
+    .report-card {
+        background-color: white;
+        padding: 25px;
+        border-radius: 15px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+    }
+    .stButton>button {
+        width: 100%;
+        background-color: #0f172a;
+        color: white;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        padding: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 def estrai_testo(file_pdf):
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
     testo = ""
     for pagina in doc:
-        t = pagina.get_text()
-        if len(t) < 100:
-            pix = pagina.get_pixmap()
-            img = Image.open(io.BytesIO(pix.tobytes()))
-            t = pytesseract.image_to_string(img, lang='ita')
-        testo += t
+        testo += pagina.get_text()
     return testo
 
 # --- INTERFACCIA ---
-st.title("⚖️ ASTA-SAFE AI: Valutazione Rischio Giudiziario")
-st.sidebar.info("Modello: Gemini 1.5 Real-Time Analysis")
+st.image("https://via.placeholder.com/250x60?text=ASTASICURA.IT", width=250) 
+st.title("Sistema Certificato di Valutazione Asset")
+st.markdown("---")
 
-file_caricato = st.file_uploader("Carica Perizia CTU (PDF)", type="pdf")
+file_caricato = st.file_uploader("Carica Documentazione Tecnica (CTU)", type="pdf")
 
 if file_caricato:
-    if st.button("🔍 ANALIZZA BENCHMARK DI RISCHIO"):
+    if st.button("GENERA REPORT DI VALUTAZIONE"):
         try:
-            with st.spinner("L'IA sta calcolando i benchmark di pericolosità..."):
-                contenuto = estrai_testo(file_caricato)
-                
-                # Selezione dinamica modello
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                target_model = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
-                model = genai.GenerativeModel(target_model)
+            with st.spinner("Elaborazione dati tecnici in corso..."):
+                testo_perizia = estrai_testo(file_caricato)
+                model = genai.GenerativeModel("gemini-1.5-flash")
                 
                 prompt = f"""
-                Analizza questa perizia per un'asta immobiliare e compila rigorosamente questi benchmark:
-                1. RISCHIO URBANISTICO (0-10): Gravità degli abusi (sanabili vs non sanabili).
-                2. RISCHIO OCCUPAZIONE (0-10): Stato dell'immobile (libero, occupato dal debitore, occupato con titolo opponibile).
-                3. RISCHIO LEGALE (0-10): Presenza di domande giudiziali o vincoli non cancellabili.
-                4. COSTI OCCULTI (0-10): Spese condominiali insolute o sanzioni sanatoria elevate.
-
-                Fornisci il risultato in questo formato:
-                - PUNTEGGIO TOTALE DI PERICOLOSITÀ
-                - TABELLA DEI BENCHMARK
-                - ANALISI DETTAGLIATA PER OGNI PUNTO.
-                
-                Testo: {contenuto[:18000]}
+                Agisci come il dipartimento tecnico di AstaSicura.it. Analizza la perizia e restituisci un JSON con:
+                - urbano (0-10), occupazione (0-10), legale (0-10), costi (0-10)
+                - sintesi (stringa), raccomandazione (stringa)
+                Testo: {testo_perizia[:25000]}
                 """
                 
-                response = model.generate_content(prompt)
-                
-                # --- VISUALIZZAZIONE RISULTATI ---
-                st.divider()
-                st.subheader("📊 Dashboard Benchmark di Pericolosità")
-                
-                # Visualizzazione a Colonne per i Benchmark
-                c1, c2, c3, c4 = st.columns(4)
-                with c1: st.metric("Urbano", "Analisi AI")
-                with c2: st.metric("Occupazione", "Analisi AI")
-                with c3: st.metric("Legale", "Analisi AI")
-                with c4: st.metric("Costi", "Analisi AI")
+                response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+                dati = json.loads(response.text)
 
-                st.markdown(response.text)
+                # --- DASHBOARD ---
+                st.subheader("📊 Analisi Multidimensionale del Rischio")
                 
+                col_metriche, col_grafico = st.columns([1, 1])
+
+                with col_metriche:
+                    st.metric("Rischio Urbanistico", f"{dati['urbano']}/10")
+                    st.metric("Stato Occupativo", f"{dati['occupazione']}/10")
+                    st.metric("Vincoli Giuridici", f"{dati['legale']}/10")
+                    st.metric("Oneri Stimati", f"{dati['costi']}/10")
+
+                with col_grafico:
+                    # Grafico a Radar (Ragnatela)
+                    categories = ['Urbanistico', 'Occupazione', 'Legale', 'Costi']
+                    values = [dati['urbano'], dati['occupazione'], dati['legale'], dati['costi']]
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatterpolar(
+                        r=values + [values[0]],
+                        theta=categories + [categories[0]],
+                        fill='toself',
+                        fillcolor='rgba(15, 23, 42, 0.3)',
+                        line=dict(color='#0f172a', width=2)
+                    ))
+
+                    fig.update_layout(
+                        polar=dict(
+                            radialaxis=dict(visible=True, range=[0, 10])
+                        ),
+                        showlegend=False,
+                        margin=dict(l=40, r=40, t=20, b=20),
+                        height=350
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+                st.markdown(f"""
+                <div class="report-card">
+                    <h4>📝 Parere Professionale AstaSicura.it</h4>
+                    <p>{dati['sintesi']}</p>
+                    <hr>
+                    <strong>Raccomandazione Strategica:</strong> {dati['raccomandazione']}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.download_button("Scarica Report Certificato", "Dati analisi...", file_name="report_astasicura.txt")
+
         except Exception as e:
-            st.error(f"Errore: {e}")
+            st.error("Errore di sistema. Verificare l'integrità del file PDF.")

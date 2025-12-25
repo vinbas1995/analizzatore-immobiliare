@@ -5,19 +5,18 @@ from PIL import Image
 import io
 import google.generativeai as genai
 from fpdf import FPDF
-import json # Importante per il parsing dei voti
+import json
 import re
 
-# --- CONFIGURAZIONE PAGINA (Deve essere la prima istruzione) ---
+# --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(
-    page_title="ASTA-SAFE AI | Portale Analisi Professionale",
+    page_title="ASTA-SAFE AI | Portale Analisi Multidocumentale",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="collapsed" # Sidebar chiusa per default per focus su UI web
+    initial_sidebar_state="collapsed"
 )
 
 # --- SETUP API KEY ---
-# Inserita direttamente come richiesto
 GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -34,7 +33,6 @@ st.markdown("""
         background-color: #f4f7f6 !important;
     }
 
-    /* Nasconde elementi standard Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -42,7 +40,7 @@ st.markdown("""
 
     /* --- HEADER WEB --- */
     .web-header {
-        background-color: #111827; /* Dark blue/gray */
+        background-color: #111827;
         padding: 1rem 2rem;
         color: white;
         display: flex;
@@ -55,9 +53,6 @@ st.markdown("""
     .logo-area { display: flex; align-items: center; gap: 10px; }
     .logo-text { font-size: 1.5rem; font-weight: 700; letter-spacing: -1px; }
     .logo-sub { color: #9ca3af; font-size: 0.9rem; }
-    .nav-links { display: flex; gap: 20px; font-size: 0.9rem; color: #d1d5db; }
-
-    /* Spaziatura per header fisso */
     .main-content { margin-top: 80px; padding-bottom: 100px; }
 
     /* --- CARD STILIZZATE --- */
@@ -65,16 +60,17 @@ st.markdown("""
         background-color: white;
         padding: 2rem;
         border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
     }
     .card-title {
         color: #1f2937;
         font-weight: 700;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         margin-bottom: 1rem;
-        display: flex; align-items: center; gap: 10px;
+        border-bottom: 2px solid #f3f4f6;
+        padding-bottom: 0.5rem;
     }
 
     /* --- PULSANTI UI --- */
@@ -87,17 +83,15 @@ st.markdown("""
         border: none;
         width: 100%;
         transition: all 0.3s;
-        text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem;
+        text-transform: uppercase; letter-spacing: 1px;
     }
     .stButton>button:hover {
         background: linear-gradient(90deg, #1d4ed8 0%, #1e40af 100%);
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        transform: translateY(-1px);
+        transform: translateY(-2px);
     }
 
     /* --- GRAFICA BENCHMARK (Progress Bars) --- */
-    .benchmark-container { margin-top: 1rem; }
-    .metric-row { margin-bottom: 1rem; }
+    .metric-row { margin-bottom: 1.2rem; }
     .metric-label-area { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .metric-name { font-weight: 600; color: #4b5563; font-size: 0.9rem; }
     .metric-value { font-weight: 700; font-size: 1rem; }
@@ -105,44 +99,32 @@ st.markdown("""
     .bar-bg {
         background-color: #e5e7eb;
         border-radius: 999px;
-        height: 12px;
+        height: 14px;
         width: 100%;
         overflow: hidden;
     }
-    .bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease-in-out; }
+    .bar-fill { height: 100%; border-radius: 999px; }
     
-    /* Colori dinamici classi CSS */
     .critical { background-color: #ef4444; } /* Rosso */
     .warning { background-color: #f97316; }  /* Arancione */
     .good { background-color: #22c55e; }     /* Verde */
 
-    /* --- BANNER AREA --- */
-    .ad-placeholder {
-        background-color: #f9fafb;
-        border: 2px dashed #d1d5db;
-        border-radius: 8px;
-        color: #6b7280;
-        text-align: center;
-        padding: 1rem;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin: 1rem 0;
-    }
-
-    /* --- FOOTER WEB --- */
+    /* --- UPLOAD GRID STILE --- */
+    .upload-label { font-weight: bold; color: #374151; margin-bottom: 5px; display: block;}
+    
+    /* --- FOOTER --- */
     .web-footer {
         background-color: #1f2937;
         color: #9ca3af;
         padding: 3rem 2rem;
         margin-top: 4rem;
         text-align: center;
-        border-top: 1px solid #374151;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# --- COMPONENTI HTML (COMPONENTI UI) ---
+# --- FUNZIONI ---
 # ==========================================
 
 def render_header():
@@ -152,15 +134,10 @@ def render_header():
                 <span style="font-size: 2rem;">🛡️</span>
                 <div>
                     <div class="logo-text">ASTA-SAFE<span style="color:#3b82f6">AI</span></div>
-                    <div class="logo-sub">Professional Due Diligence</div>
+                    <div class="logo-sub">Suite Analisi Multidocumentale</div>
                 </div>
             </div>
-            <div class="nav-links">
-                <span>Analisi</span>
-                <span>Report</span>
-                <span>Prezzi</span>
-                <span style="color:white; font-weight:600">Account Pro</span>
-            </div>
+            <div style="color:white; font-weight:600">Enterprise Edition</div>
         </div>
         <div class="main-content"></div>
     """, unsafe_allow_html=True)
@@ -168,40 +145,31 @@ def render_header():
 def render_footer():
     st.markdown("""
         <div class="web-footer">
-            <div style="font-weight:700; color:white; margin-bottom:1rem;">ASTA-SAFE AI Technologies</div>
-            <div style="font-size:0.85rem; margin-bottom:2rem;">
-                Strumenti avanzati di Intelligenza Artificiale per il Real Estate Giudiziario.<br>
-                Via Roma 1, Milano | info@astasafe.ai
-            </div>
-            <div style="font-size:0.75rem; color:#6b7280;">
-                © 2024 Tutti i diritti riservati. L'analisi AI non sostituisce il parere legale/tecnico di un professionista abilitato.
-            </div>
+            ASTA-SAFE AI Technologies | Analisi Documentale Integrata
+            <br><small>© 2025. Verify all data on official portals.</small>
         </div>
     """, unsafe_allow_html=True)
 
 def render_ad_space(height="90px", label="Banner"):
     st.markdown(f"""
-        <div class="ad-placeholder" style="height: {height}; display:flex; align-items:center; justify-content:center;">
-            AREA PUBBLICITARIA - {label}<br>
-            (Inserisci codice AdSense qui)
+        <div style="background:#f9fafb; border:2px dashed #d1d5db; height:{height}; display:flex; align-items:center; justify-content:center; border-radius:8px; margin:1rem 0; color:#9ca3af; font-weight:bold;">
+            SPAZIO PUBBLICITARIO - {label}
         </div>
     """, unsafe_allow_html=True)
 
 def render_benchmark_bar(name, value):
-    """Genera l'HTML per una barra di benchmark stilizzata"""
     try:
         val = float(value)
-        percent = val * 10 # Converti scala 1-10 in percentuale
+        percent = min(val * 10, 100)
     except:
         val = 0
         percent = 0
         
-    # Determina il colore
     color_class = "good"
     if val <= 4: color_class = "critical"
     elif val <= 7: color_class = "warning"
     
-    html = f"""
+    return f"""
     <div class="metric-row">
         <div class="metric-label-area">
             <span class="metric-name">{name}</span>
@@ -212,175 +180,196 @@ def render_benchmark_bar(name, value):
         </div>
     </div>
     """
-    return html
-
-# ==========================================
-# --- FUNZIONI LOGICHE (BACKEND) ---
-# ==========================================
 
 def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
-def estrai_testo_ottimizzato(file_pdf):
-    doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
-    testo_risultato = ""
-    # Analizziamo max 20 pagine per velocizzare UI pro
-    progress_bar = st.progress(0, text="Lettura PDF...")
-    total = min(len(doc), 20)
-    for i, pagina in enumerate(doc):
-        if i >= 20: break 
-        progress_bar.progress((i + 1) / total, text=f"Elaborazione pagina {i+1}/{total}...")
-        t = pagina.get_text()
-        if len(t) < 150: 
-            try:
-                pix = pagina.get_pixmap(matrix=fitz.Matrix(1.3, 1.3))
-                img = Image.open(io.BytesIO(pix.tobytes()))
-                t = pytesseract.image_to_string(img, lang='ita')
-            except: t = ""
-        testo_risultato += t
-    progress_bar.empty()
-    return testo_risultato
+def estrai_testo_da_file(file_obj, nome_tipo):
+    """Estrae testo e aggiunge etichetta di origine"""
+    if file_obj is None:
+        return ""
+    
+    testo_temp = ""
+    try:
+        doc = fitz.open(stream=file_obj.read(), filetype="pdf")
+        # Analizza max 15 pagine per file per evitare timeout
+        pages_to_scan = min(len(doc), 15)
+        
+        for i, pagina in enumerate(doc):
+            if i >= pages_to_scan: break
+            t = pagina.get_text()
+            # Se poco testo (es. planimetria scansionata), usa OCR
+            if len(t) < 50: 
+                try:
+                    pix = pagina.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                    img = Image.open(io.BytesIO(pix.tobytes()))
+                    t = pytesseract.image_to_string(img, lang='ita')
+                except: t = ""
+            testo_temp += t
+    except Exception as e:
+        return f"[Errore lettura {nome_tipo}: {e}]"
+
+    # Aggiungi separatori chiari per l'IA
+    return f"\n\n--- INIZIO DOCUMENTO: {nome_tipo.upper()} ---\n{testo_temp}\n--- FINE DOCUMENTO {nome_tipo.upper()} ---\n"
 
 # ==========================================
-# --- CORPO DELLA PAGINA (UI MAIN) ---
+# --- APP LOGIC ---
 # ==========================================
 
-# 1. Render Header Professionale
 render_header()
-
-# Layout principale a colonne (Contenuto al centro, banner ai lati se desiderato, qui usiamo full width)
 container = st.container()
 
 with container:
-    # --- AREA HEADER TITOLO ---
-    cols_tit = st.columns([3, 1])
-    with cols_tit[0]:
-        st.markdown("<h1>Dashboard Analisi Perizie</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='color:#6b7280; margin-top:-15px;'>Carica il documento CTU per ottenere istantaneamente il rating di rischio e l'analisi semantica dell'IA.</p>", unsafe_allow_html=True)
-    with cols_tit[1]:
-         render_ad_space(height="70px", label="Sponsor Top")
+    st.markdown("<h1>Dashboard Analisi Integrata</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#6b7280; margin-top:-10px;'>Carica i diversi documenti dell'asta. L'IA incrocerà i dati (es. Perizia vs Catasto) per un benchmark preciso.</p>", unsafe_allow_html=True)
+    
+    render_ad_space(height="80px", label="Top Leaderboard")
 
-    st.markdown("---")
+    # --- INPUT ECONOMICI ---
+    st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">1. Parametri Economici</div>', unsafe_allow_html=True)
+    ce1, ce2 = st.columns(2)
+    with ce1: base = st.number_input("Prezzo Base (€)", value=100000, step=1000)
+    with ce2: min_bid = st.number_input("Offerta Minima (€)", value=75000, step=1000)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- LAYOUT INPUT (2 Colonne) ---
-    col_in1, col_in2 = st.columns([1, 2])
-
-    with col_in1:
-        st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-title">💰 Dati Asta</div>', unsafe_allow_html=True)
-        prezzo_base = st.number_input("Prezzo Base (€)", value=100000, step=5000)
-        offerta_min = st.number_input("Offerta Minima (€)", value=75000, step=5000)
-        st.markdown('</div>', unsafe_allow_html=True)
+    # --- UPLOAD MULTIPLO (GRIGLIA) ---
+    st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">2. Caricamento Documentazione (PDF)</div>', unsafe_allow_html=True)
+    
+    c1, c2 = st.columns(2)
+    
+    # 1 - PERIZIA
+    with c1:
+        st.markdown('<span class="upload-label">📄 1. Perizia CTU (Principale)</span>', unsafe_allow_html=True)
+        file_perizia = st.file_uploader("", type="pdf", key="u1")
         
-        render_ad_space(height="200px", label="Banner Laterale")
+        st.markdown('<span class="upload-label" style="margin-top:15px">📐 2. Planimetria</span>', unsafe_allow_html=True)
+        file_planimetria = st.file_uploader("", type="pdf", key="u2")
 
-    with col_in2:
-        st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-title">📂 Caricamento Documento</div>', unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("Trascina qui la Perizia CTU (PDF)", type="pdf")
+    # 2 - ALTRI DOCS
+    with c2:
+        st.markdown('<span class="upload-label">📢 3. Avviso di Vendita</span>', unsafe_allow_html=True)
+        file_avviso = st.file_uploader("", type="pdf", key="u3")
         
-        st.write("")
-        if uploaded_file:
-            st.info(f"📄 Documento caricato: {uploaded_file.name}")
-            analyze_btn = st.button("🚀 AVVIA ELABORAZIONE IA PRO")
-        else:
-            analyze_btn = False
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<span class="upload-label" style="margin-top:15px">🏛️ 4. Dati Catastali / Visura</span>', unsafe_allow_html=True)
+        file_catasto = st.file_uploader("", type="pdf", key="u4")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- AREA RISULTATI ---
-    if uploaded_file and analyze_btn:
-        try:
-            with st.spinner("🧠 L'Intelligenza Artificiale sta analizzando il documento..."):
-                
-                # 1. Estrazione
-                uploaded_file.seek(0)
-                testo_perizia = estrai_testo_ottimizzato(uploaded_file)
-                
-                if not testo_perizia or len(testo_perizia) < 100:
-                    st.error("Impossibile estrarre testo sufficiente dal PDF. Verifica che non sia protetto o danneggiato.")
-                    st.stop()
+    # Pulsante Azione
+    start_analysis = False
+    if file_perizia or file_planimetria or file_avviso or file_catasto:
+        start_analysis = st.button("🚀 COMBINA DOCUMENTI E AVVIA ANALISI")
+    else:
+        st.info("Carica almeno un documento (preferibilmente la Perizia) per iniziare.")
 
-                # 2. Configurazione Modello
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                modello_scelto = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
-                model = genai.GenerativeModel(modello_scelto)
-                
-                # 3. PROMPT AVANZATO (Output strutturato per grafici)
-                # Chiediamo specificamente un blocco JSON separato dall'analisi testuale
-                prompt = f"""
-                Analizza questa perizia giudiziaria italiana.
-                Genera DUE blocchi distinti nella risposta, separati da "==SEPARATOR==".
+    # --- ELABORAZIONE ---
+    if start_analysis:
+        with st.spinner("🔄 L'IA sta leggendo e incrociando i dati di tutti i file..."):
+            
+            # 1. Aggregazione Testo
+            full_corpus = ""
+            files_loaded = []
+            
+            if file_perizia: 
+                full_corpus += estrai_testo_da_file(file_perizia, "PERIZIA CTU")
+                files_loaded.append("Perizia")
+            if file_planimetria: 
+                full_corpus += estrai_testo_da_file(file_planimetria, "PLANIMETRIA")
+                files_loaded.append("Planimetria")
+            if file_avviso: 
+                full_corpus += estrai_testo_da_file(file_avviso, "AVVISO VENDITA")
+                files_loaded.append("Avviso")
+            if file_catasto: 
+                full_corpus += estrai_testo_da_file(file_catasto, "DATI CATASTALI")
+                files_loaded.append("Catasto")
 
-                BLOCCO 1 (SOLO JSON):
-                Un oggetto JSON con i voti da 1 a 10 (1 critico, 10 sicuro) per queste categorie. Usa esattamente queste chiavi:
-                "urbanistico", "occupazione", "legale", "economico".
+            if len(full_corpus) < 100:
+                st.error("Errore: Testo insufficiente estratto. I PDF potrebbero essere immagini non leggibili.")
+                st.stop()
 
-                BLOCCO 2 (MARKDOWN):
-                Un'analisi professionale dettagliata che giustifica i voti, evidenziando abusi, stati di occupazione, vincoli e costi occulti.
+            # 2. Setup AI
+            model = genai.GenerativeModel("models/gemini-1.5-flash")
 
-                Dati asta: Base €{prezzo_base}, Minima €{offerta_min}.
-                Testo (estratto): {testo_perizia[:20000]}
-                """
-                
+            # 3. Prompt Multi-Doc
+            prompt = f"""
+            Agisci come Senior Real Estate Analyst. Hai a disposizione il testo estratto da vari documenti ({', '.join(files_loaded)}).
+            
+            OBIETTIVO: Analizzare la coerenza tra i documenti e rilevare rischi.
+            
+            Genera la risposta in DUE PARTI separate da "==SEPARATOR==".
+
+            PARTE 1: JSON PURO (per grafici)
+            Restituisci un oggetto JSON con chiavi esatte: "urbanistico", "occupazione", "legale", "economico".
+            Valore da 1 (Rischio Estremo) a 10 (Sicuro).
+            
+            PARTE 2: REPORT MARKDOWN PROFESSIONALE
+            Struttura il report così:
+            1. **Discrepanze Rilevate**: Se presenti, evidenzia differenze tra Perizia e Catasto/Planimetria (es. stanze abusive, difformità grafiche descritte).
+            2. **Analisi Urbanistica**: Stato legittimità e costi sanatoria.
+            3. **Stato Occupativo**: Analizza titolo opponibile (da Avviso/Perizia).
+            4. **Analisi Economica**: Base d'asta €{base} vs Valore stimato (cerca nel testo). Convenienza?
+            5. **Conclusioni**: "Go", "No-Go", o "Caution".
+
+            TESTO COMBINATO DOCUMENTI:
+            {full_corpus[:28000]}
+            """
+
+            try:
                 response = model.generate_content(prompt)
-                full_response = response.text
-
-                # 4. Parsing della Risposta
-                try:
-                    json_part, md_part = full_response.split("==SEPARATOR==")
-                    # Pulisce eventuali markdown code blocks attorno al json
-                    json_clean = re.sub(r'```json\s*|```', '', json_part.strip())
-                    voti_data = json.loads(json_clean)
-                except Exception as parse_err:
-                    st.warning("Errore nel parsing dei voti visivi. Mostro solo l'analisi testuale.")
-                    voti_data = None
-                    md_part = full_response # Fallback
-
-                st.markdown("---")
-                st.markdown("<h2>📊 Report Finale di Due Diligence</h2>", unsafe_allow_html=True)
+                full_resp = response.text
                 
-                render_ad_space(height="90px", label="Sponsor Mid-Content")
-
-                # --- Visualizzazione Grafica (Card dedicata) ---
-                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-title">📈 Benchmark Rischio (Voto 1-10)</div>', unsafe_allow_html=True)
-                st.markdown('<p style="color:#6b7280; font-size:0.85rem;">Nota: Punteggi bassi indicano alto rischio/criticità.</p>', unsafe_allow_html=True)
-                
-                if voti_data:
-                    col_g1, col_g2 = st.columns(2)
-                    with col_g1:
-                        st.markdown(render_benchmark_bar("Rischio Urbanistico (Abusi)", voti_data.get("urbanistico", 0)), unsafe_allow_html=True)
-                        st.markdown(render_benchmark_bar("Stato Occupativo", voti_data.get("occupazione", 0)), unsafe_allow_html=True)
-                    with col_g2:
-                        st.markdown(render_benchmark_bar("Vincoli Legali / Servitù", voti_data.get("legale", 0)), unsafe_allow_html=True)
-                        st.markdown(render_benchmark_bar("Oneri Economici Condominiali", voti_data.get("economico", 0)), unsafe_allow_html=True)
+                # Parsing
+                if "==SEPARATOR==" in full_resp:
+                    json_raw, md_raw = full_resp.split("==SEPARATOR==")
+                    json_clean = re.sub(r'```json|```', '', json_raw).strip()
+                    try:
+                        scores = json.loads(json_clean)
+                    except:
+                        scores = None
                 else:
-                    st.error("Impossibile generare il grafico visivo dei benchmark.")
+                    scores = None
+                    md_raw = full_resp
+
+                # 4. Output Grafico
+                st.markdown("---")
+                render_ad_space(height="100px", label="Mid Content")
                 
+                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+                st.markdown('<h2>📊 Benchmark di Rischio Multidocumentale</h2>', unsafe_allow_html=True)
+                
+                if scores:
+                    c_g1, c_g2 = st.columns(2)
+                    with c_g1:
+                        st.markdown(render_benchmark_bar("Urbanistica & Conformità", scores.get("urbanistico", 5)), unsafe_allow_html=True)
+                        st.markdown(render_benchmark_bar("Stato Occupativo", scores.get("occupazione", 5)), unsafe_allow_html=True)
+                    with c_g2:
+                        st.markdown(render_benchmark_bar("Vincoli Giuridici", scores.get("legale", 5)), unsafe_allow_html=True)
+                        st.markdown(render_benchmark_bar("Convenienza Economica", scores.get("economico", 5)), unsafe_allow_html=True)
+                else:
+                    st.warning("Grafico non disponibile (Errore parsing JSON). Leggere report testuale.")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-                # --- Visualizzazione Testuale (Card dedicata) ---
+                # 5. Output Testuale
                 st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-title">📝 Analisi Dettagliata IA</div>', unsafe_allow_html=True)
-                st.markdown(md_part)
+                st.markdown(f"### 📝 Report Analisi Incrociata ({len(files_loaded)} documenti)", unsafe_allow_html=True)
+                st.markdown(md_raw)
                 st.markdown('</div>', unsafe_allow_html=True)
-                
-                # --- EXPORT PDF ---
+
+                # 6. PDF Export
                 pdf = FPDF()
                 pdf.add_page()
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(0, 10, clean_text("Report ASTA-SAFE AI Pro"), 0, 1, 'C')
-                pdf.ln(10)
-                pdf.set_font("Arial", size=11)
-                # Pulizia base markdown per PDF
-                text_for_pdf = clean_text(md_part.replace("**", "").replace("#", ""))
-                pdf.multi_cell(0, 7, txt=text_for_pdf)
+                pdf.set_font("Arial", "B", 16)
+                pdf.cell(0, 10, "Report ASTA-SAFE Multi-Doc", 0, 1, 'C')
+                pdf.set_font("Arial", size=10)
+                pdf.ln(5)
+                pdf.multi_cell(0, 6, clean_text(md_raw.replace("**", "").replace("##", "")))
                 pdf_bytes = pdf.output(dest='S').encode('latin-1')
                 
-                st.download_button("📥 Scarica Report PDF Legale", data=pdf_bytes, file_name=f"Analisi_Asta_{uploaded_file.name}.pdf", mime="application/pdf")
+                st.download_button("📥 Scarica PDF Completo", pdf_bytes, "Report_Asta_Full.pdf", "application/pdf")
 
-        except Exception as e:
-            st.error(f"Errore critico durante l'analisi: {e}")
+            except Exception as e:
+                st.error(f"Errore durante la generazione AI: {e}")
 
-# 3. Render Footer Professionale
 render_footer()

@@ -208,4 +208,102 @@ def trova_modello_sicuro():
 # --- 5. LOGICA APPLICAZIONE ---
 
 render_header()
-render_banner
+render_banner("TOP LEADERBOARD DASHBOARD", "90px")
+
+st.markdown('<div class="styled-card"><div class="card-header">📊 Parametri e Documentazione d\'Ingresso</div>', unsafe_allow_html=True)
+col_param, col_up = st.columns([1, 2])
+
+with col_param:
+    st.markdown("**Dati Economici Asta**")
+    base = st.number_input("Base d'Asta (€)", value=100000, step=1000, key="asta_base")
+    offerta = st.number_input("Offerta Minima (€)", value=75000, step=1000, key="asta_offerta")
+    st.caption("Questi dati servono per calcolare la convenienza d'investimento.")
+
+with col_up:
+    st.markdown("**Caricamento Documenti (Formato PDF)**")
+    c1, c2 = st.columns(2)
+    f_perizia = c1.file_uploader("1. Perizia CTU (Principale)", type="pdf", key="up_perizia")
+    f_plan = c2.file_uploader("2. Planimetria", type="pdf", key="up_planimetria")
+    f_avviso = c1.file_uploader("3. Avviso Vendita", type="pdf", key="up_avviso")
+    f_catasto = c2.file_uploader("4. Visura Catastale / Dati", type="pdf", key="up_catasto")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+if f_perizia or f_plan or f_avviso or f_catasto:
+    if st.button("🚀 AVVIA ANALISI PROFONDA AI V4.1"):
+        with st.spinner("🕵️ Analisi documenti in corso..."):
+            
+            corpus = ""
+            corpus += estrai_pdf(f_perizia, "PERIZIA CTU")
+            corpus += estrai_pdf(f_plan, "PLANIMETRIA")
+            corpus += estrai_pdf(f_avviso, "AVVISO VENDITA")
+            corpus += estrai_pdf(f_catasto, "VISURA CATASTALE")
+            
+            # Utilizzo funzione "Blind Fix"
+            modello_nome = trova_modello_sicuro()
+            model = genai.GenerativeModel(modello_nome)
+            
+            prompt = f"""
+            Agisci come Senior Real Estate Analyst. Analizza questi documenti d'asta.
+            OUTPUT RICHIESTO: JSON separato da "###SEP###" e Report Markdown.
+            
+            JSON KEYS (voto 1-10): "urb", "occ", "leg", "eco", "man", "riv", "doc".
+            
+            DATI INPUT ASTA: Base €{base}, Offerta €{offerta}.
+            TESTO DOCUMENTI: {corpus[:30000]}
+            """
+            
+            try:
+                resp = model.generate_content(prompt).text
+                
+                if "###SEP###" in resp:
+                    raw_json, raw_md = resp.split("###SEP###")
+                    clean_json = re.sub(r'```json|```', '', raw_json).strip()
+                    try: d = json.loads(clean_json)
+                    except: d = {"urb":5, "occ":5, "leg":5, "eco":5, "man":5, "riv":5, "doc":5}
+                    report = raw_md
+                else:
+                    d = {"urb":0, "occ":0, "leg":0, "eco":0, "man":0, "riv":0, "doc":0}
+                    report = resp
+                
+                st.markdown("---")
+                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+                st.markdown('<div class="card-header">🏆 Dashboard Scorecard</div>', unsafe_allow_html=True)
+                
+                html_grid = f"""
+                <div class="benchmark-grid">
+                    {render_radial_gauge("🏗️", "Urbanistica", d.get('urb', 0))}
+                    {render_radial_gauge("🏠", "Occupazione", d.get('occ', 0))}
+                    {render_radial_gauge("⚖️", "Vincoli Legali", d.get('leg', 0))}
+                    {render_radial_gauge("💰", "Economia", d.get('eco', 0))}
+                    {render_radial_gauge("🛠️", "Manutenzione", d.get('man', 0))}
+                    {render_radial_gauge("📈", "Rivendibilità", d.get('riv', 0))}
+                    {render_radial_gauge("📑", "Documenti", d.get('doc', 0))}
+                </div>
+                """
+                st.markdown(html_grid, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                render_banner("MID REPORT DASHBOARD", "100px")
+                
+                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+                st.markdown('<div class="card-header">📝 Analisi Dettagliata</div>', unsafe_allow_html=True)
+                st.markdown(report)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                sanitized_report = clean_text(report.replace("**", "").replace("#", ""))
+                pdf.multi_cell(0, 8, sanitized_report)
+                
+                st.download_button("📥 SCARICA REPORT PDF", pdf.output(dest='S').encode('latin-1'), "Analisi_Full.pdf")
+                
+            except Exception as e:
+                st.error(f"Errore: {e}. PROVA AD AGGIORNARE LA LIBRERIA: pip install -U google-generativeai")
+
+else:
+    st.info("Attesa caricamento documentazione...")
+
+render_banner("FOOTER DASHBOARD PAGE", "120px")
+st.markdown("<div style='text-align:center; padding:30px; color:#6b7280;'>ASTA-SAFE AI Dashboard V4.1 Pro</div>", unsafe_allow_html=True)

@@ -1,66 +1,62 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz
 import pytesseract
 from PIL import Image
 import io
 import google.generativeai as genai
 
-# --- CHIAVE API ---
+# --- CONFIGURAZIONE ---
 GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
-st.set_page_config(page_title="Analizzatore Immobiliare PRO", layout="wide")
+st.set_page_config(page_title="ASTA-SAFE AI", layout="wide")
 
-def estrai_testo_documento(file_pdf):
+def estrai_testo(file_pdf):
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
-    testo_totale = ""
+    testo = ""
     for pagina in doc:
-        testo_pag = pagina.get_text()
-        if len(testo_pag) < 100: 
+        t = pagina.get_text()
+        if len(t) < 100:
             pix = pagina.get_pixmap()
             img = Image.open(io.BytesIO(pix.tobytes()))
-            testo_pag = pytesseract.image_to_string(img, lang='ita')
-        testo_totale += testo_pag
-    return testo_totale
+            t = pytesseract.image_to_string(img, lang='ita')
+        testo += t
+    return testo
 
-st.title("⚖️ Valutatore Perizie Immobiliare (Multi-Model AI)")
+# --- INTERFACCIA ---
+st.title("⚖️ ASTA-SAFE AI: Valutazione Rischio Giudiziario")
+st.sidebar.info("Modello: Gemini 1.5 Real-Time Analysis")
 
-file_caricato = st.file_uploader("Carica la perizia (PDF)", type="pdf")
+file_caricato = st.file_uploader("Carica Perizia CTU (PDF)", type="pdf")
 
 if file_caricato:
-    if st.button("🚀 AVVIA ANALISI"):
+    if st.button("🔍 ANALIZZA BENCHMARK DI RISCHIO"):
         try:
-            with st.spinner("Ricerca modello compatibile e analisi in corso..."):
-                # 1. Trova il modello disponibile per la tua chiave
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                # Seleziona il primo modello Flash o Pro disponibile
-                target_model = "models/gemini-1.5-flash" 
-                if target_model not in available_models:
-                    target_model = available_models[0] # Prende il primo disponibile se il flash fallisce
+            with st.spinner("L'IA sta calcolando i benchmark di pericolosità..."):
+                contenuto = estrai_testo(file_caricato)
                 
+                # Selezione dinamica modello
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                target_model = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
                 model = genai.GenerativeModel(target_model)
                 
-                # 2. Estrazione testo
-                contenuto = estrai_testo_documento(file_caricato)
-                
-                # 3. Analisi
                 prompt = f"""
-                Analizza questa perizia immobiliare italiana.
-                Sii estremamente preciso su:
-                - Abusi edilizi citati.
-                - Presenza di ipoteche o pignoramenti.
-                - Costi stimati di sanatoria.
-                - Se l'immobile è mutuabile.
+                Analizza questa perizia per un'asta immobiliare e compila rigorosamente questi benchmark:
+                1. RISCHIO URBANISTICO (0-10): Gravità degli abusi (sanabili vs non sanabili).
+                2. RISCHIO OCCUPAZIONE (0-10): Stato dell'immobile (libero, occupato dal debitore, occupato con titolo opponibile).
+                3. RISCHIO LEGALE (0-10): Presenza di domande giudiziali o vincoli non cancellabili.
+                4. COSTI OCCULTI (0-10): Spese condominiali insolute o sanzioni sanatoria elevate.
+
+                Fornisci il risultato in questo formato:
+                - PUNTEGGIO TOTALE DI PERICOLOSITÀ
+                - TABELLA DEI BENCHMARK
+                - ANALISI DETTAGLIATA PER OGNI PUNTO.
                 
-                Testo: {contenuto[:15000]}
+                Testo: {contenuto[:18000]}
                 """
                 
                 response = model.generate_content(prompt)
                 
+                # --- VISUALIZZAZIONE RISULTATI ---
                 st.divider()
-                st.success(f"Analisi completata con successo usando il modello: {target_model}")
-                st.markdown(response.text)
-                
-        except Exception as e:
-            st.error(f"Errore critico: {e}")
-            st.info("Consiglio: Controlla su Google AI Studio se hai accettato i termini di servizio del modello.")
+                st.subheader("

@@ -1,92 +1,74 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz
 import pytesseract
 from PIL import Image
 import io
 import google.generativeai as genai
-from fpdf import FPDF
 
-# --- CONFIGURAZIONE CORE ---
+# --- CONFIGURAZIONE ---
 GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
-st.set_page_config(page_title="ASTA-SAFE AI Pro", layout="wide", page_icon="⚖️")
+st.set_page_config(page_title="ASTA-SAFE AI", layout="wide")
 
-# --- FUNZIONI TECNICHE ---
-
-def estrai_testo_ocr(file_pdf):
-    """Estrae testo e gestisce PDF scannerizzati tramite OCR."""
+def estrai_testo(file_pdf):
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
-    testo_risultato = ""
+    testo = ""
     for pagina in doc:
         t = pagina.get_text()
-        if len(t) < 150: 
+        if len(t) < 100:
             pix = pagina.get_pixmap()
             img = Image.open(io.BytesIO(pix.tobytes()))
             t = pytesseract.image_to_string(img, lang='ita')
-        testo_risultato += t
-    return testo_risultato
+        testo += t
+    return testo
 
-class ReportPDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'REPORT VALUTAZIONE ASTA GIUDIZIARIA', 0, 1, 'C')
-        self.ln(10)
+# --- INTERFACCIA ---
+st.title("⚖️ ASTA-SAFE AI: Valutazione Rischio Giudiziario")
+st.sidebar.info("Modello: Gemini 1.5 Real-Time Analysis")
 
-# --- INTERFACCIA UTENTE ---
-st.title("🛡️ ASTA-SAFE AI: Analizzatore Pericolosità")
-st.markdown("### Calcolo Benchmark di Rischio per Aste Immobiliari")
+file_caricato = st.file_uploader("Carica Perizia CTU (PDF)", type="pdf")
 
-with st.sidebar:
-    st.header("Parametri Economici")
-    prezzo_base = st.number_input("Prezzo Base d'Asta (€)", min_value=0, value=100000)
-    offerta_min = st.number_input("Offerta Minima (€)", min_value=0, value=75000)
-    st.divider()
-    st.caption("Il sistema calcola la pericolosità incrociando i dati CTU con i rischi di mercato.")
-
-uploaded_file = st.file_uploader("Carica la Perizia (PDF)", type="pdf")
-
-if uploaded_file:
-    if st.button("🚀 AVVIA ANALISI BENCHMARK"):
+if file_caricato:
+    if st.button("🔍 ANALIZZA BENCHMARK DI RISCHIO"):
         try:
-            with st.spinner("L'IA sta analizzando i benchmark di rischio..."):
-                # 1. Estrazione Testo
-                testo_perizia = estrai_testo_ocr(uploaded_file)
+            with st.spinner("L'IA sta calcolando i benchmark di pericolosità..."):
+                contenuto = estrai_testo(file_caricato)
                 
-                # 2. Modello AI
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # Selezione dinamica modello
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                target_model = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
+                model = genai.GenerativeModel(target_model)
                 
-                # 3. Prompt Benchmark
                 prompt = f"""
-                Analizza questa perizia per asta giudiziaria e genera i seguenti BENCHMARK DI PERICOLOSITÀ (voto 1-10):
+                Analizza questa perizia per un'asta immobiliare e compila rigorosamente questi benchmark:
+                1. RISCHIO URBANISTICO (0-10): Gravità degli abusi (sanabili vs non sanabili).
+                2. RISCHIO OCCUPAZIONE (0-10): Stato dell'immobile (libero, occupato dal debitore, occupato con titolo opponibile).
+                3. RISCHIO LEGALE (0-10): Presenza di domande giudiziali o vincoli non cancellabili.
+                4. COSTI OCCULTI (0-10): Spese condominiali insolute o sanzioni sanatoria elevate.
+
+                Fornisci il risultato in questo formato:
+                - PUNTEGGIO TOTALE DI PERICOLOSITÀ
+                - TABELLA DEI BENCHMARK
+                - ANALISI DETTAGLIATA PER OGNI PUNTO.
                 
-                - RISCHIO URBANISTICO: Gravità abusi e costi ripristino.
-                - RISCHIO OCCUPAZIONE: Stato immobile e tempi di liberazione.
-                - RISCHIO LEGALE: Vincoli non cancellabili e servitù.
-                - RISCHIO ECONOMICO: Oneri condominiali e sanzioni.
-                
-                Dati asta: Base €{prezzo_base}, Minima €{offerta_min}.
-                Fornisci una tabella riassuntiva dei voti e un'analisi dettagliata.
-                
-                Testo: {testo_perizia[:15000]}
+                Testo: {contenuto[:18000]}
                 """
                 
                 response = model.generate_content(prompt)
-                analisi_testo = response.text
-
-                # 4. Risultati a Video
+                
+                # --- VISUALIZZAZIONE RISULTATI ---
                 st.divider()
-                st.subheader("📊 Analisi Rischi e Benchmark")
-                st.markdown(analisi_testo)
+                st.subheader("📊 Dashboard Benchmark di Pericolosità")
                 
-                # 5. Export PDF
-                pdf = ReportPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=11)
-                pdf.multi_cell(0, 10, txt=analisi_testo.encode('latin-1', 'ignore').decode('latin-1'))
-                pdf_bytes = pdf.output(dest='S').encode('latin-1')
-                
-                st.download_button(label="📥 Scarica Report PDF", data=pdf_bytes, file_name="Analisi_Asta.pdf")
+                # Visualizzazione a Colonne per i Benchmark
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: st.metric("Urbano", "Analisi AI")
+                with c2: st.metric("Occupazione", "Analisi AI")
+                with c3: st.metric("Legale", "Analisi AI")
+                with c4: st.metric("Costi", "Analisi AI")
 
+                st.markdown(response.text)
+                
         except Exception as e:
-            st.error(f"Errore durante l'analisi: {e}")
+            st.error(f"Errore: {e}")

@@ -57,4 +57,46 @@ if uploaded_file:
                 # 2. Selezione Modello
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                # 3. Prompt
+                # 3. Prompt Specializzato per Aste
+                prompt = f"""
+                Agisci come un consulente specializzato in aste giudiziarie italiane.
+                Analizza la perizia e compila i seguenti BENCHMARK DI PERICOLOSITÀ (da 1 a 10):
+                
+                - RISCHIO URBANISTICO: Abusi edilizi, sanabilità e costi.
+                - RISCHIO OCCUPAZIONE: Stato dell'immobile e titoli opponibili.
+                - RISCHIO LEGALE: Vincoli, servitù o domande giudiziali.
+                - RISCHIO ECONOMICO: Spese condominiali insolute.
+                
+                Dati: Prezzo Base €{prezzo_base}, Offerta Minima €{offerta_min}.
+                
+                Fornisci un report strutturato con Punteggi, Analisi Dettagliata e Offerta Massima consigliata.
+                
+                Testo Perizia:
+                {testo_perizia[:15000]}
+                """
+                
+                # 4. Generazione Analisi
+                response = model.generate_content(prompt)
+                analisi_finale = response.text
+
+                # 5. Visualizzazione Risultati
+                st.divider()
+                st.subheader("📊 Esito dell'Analisi AI")
+                st.markdown(analisi_finale)
+                
+                # 6. Generazione PDF
+                pdf = ReportPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=11)
+                pdf.multi_cell(0, 10, txt=analisi_finale.encode('latin-1', 'ignore').decode('latin-1'))
+                pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                
+                st.download_button(
+                    label="📥 Scarica Report PDF",
+                    data=pdf_bytes,
+                    file_name="Analisi_Rischio_Asta.pdf",
+                    mime="application/pdf"
+                )
+
+        except Exception as e:
+            st.error(f"Errore durante l'elaborazione: {e}")

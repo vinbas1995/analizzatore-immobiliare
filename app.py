@@ -15,7 +15,6 @@ st.set_page_config(page_title="ASTA-SAFE AI Pro", layout="wide", page_icon="⚖�
 # --- FUNZIONI TECNICHE ---
 
 def estrai_testo_ocr(file_pdf):
-    """Estrae testo e gestisce PDF scannerizzati tramite OCR."""
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
     testo_risultato = ""
     for pagina in doc:
@@ -35,48 +34,48 @@ class ReportPDF(FPDF):
 
 # --- INTERFACCIA UTENTE ---
 st.title("🛡️ ASTA-SAFE AI: Analizzatore Pericolosità")
-st.markdown("### Calcolo Benchmark di Rischio per Aste Immobiliari")
 
 with st.sidebar:
     st.header("Parametri Economici")
     prezzo_base = st.number_input("Prezzo Base d'Asta (€)", min_value=0, value=100000)
     offerta_min = st.number_input("Offerta Minima (€)", min_value=0, value=75000)
-    st.divider()
-    st.caption("Il sistema calcola la pericolosità incrociando i dati CTU con i rischi di mercato.")
 
 uploaded_file = st.file_uploader("Carica la Perizia (PDF)", type="pdf")
 
 if uploaded_file:
     if st.button("🚀 AVVIA ANALISI BENCHMARK"):
         try:
-            with st.spinner("L'IA sta analizzando i benchmark di rischio..."):
-                # 1. Estrazione Testo
-                testo_perizia = estrai_testo_ocr(uploaded_file)
+            with st.spinner("Ricerca modello AI compatibile e analisi..."):
+                # 1. Trova il miglior modello disponibile per la tua chiave (Risolve errore 404)
+                modelli_disponibili = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                 
-                # 2. Modello AI
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # Cerchiamo in ordine di preferenza
+                preferiti = ["models/gemini-1.5-flash-latest", "models/gemini-1.5-flash", "models/gemini-pro"]
+                modello_scelto = next((m for m in preferiti if m in modelli_disponibili), modelli_disponibili[0])
+                
+                model = genai.GenerativeModel(modello_scelto)
+                
+                # 2. Estrazione Testo
+                testo_perizia = estrai_testo_ocr(uploaded_file)
                 
                 # 3. Prompt Benchmark
                 prompt = f"""
                 Analizza questa perizia per asta giudiziaria e genera i seguenti BENCHMARK DI PERICOLOSITÀ (voto 1-10):
-                
                 - RISCHIO URBANISTICO: Gravità abusi e costi ripristino.
                 - RISCHIO OCCUPAZIONE: Stato immobile e tempi di liberazione.
                 - RISCHIO LEGALE: Vincoli non cancellabili e servitù.
                 - RISCHIO ECONOMICO: Oneri condominiali e sanzioni.
                 
                 Dati asta: Base €{prezzo_base}, Minima €{offerta_min}.
-                Fornisci una tabella riassuntiva dei voti e un'analisi dettagliata.
-                
                 Testo: {testo_perizia[:15000]}
                 """
                 
                 response = model.generate_content(prompt)
                 analisi_testo = response.text
 
-                # 4. Risultati a Video
+                # 4. Risultati
                 st.divider()
-                st.subheader("📊 Analisi Rischi e Benchmark")
+                st.success(f"Analisi completata con successo (Modello utilizzato: {modello_scelto})")
                 st.markdown(analisi_testo)
                 
                 # 5. Export PDF
@@ -85,8 +84,8 @@ if uploaded_file:
                 pdf.set_font("Arial", size=11)
                 pdf.multi_cell(0, 10, txt=analisi_testo.encode('latin-1', 'ignore').decode('latin-1'))
                 pdf_bytes = pdf.output(dest='S').encode('latin-1')
-                
                 st.download_button(label="📥 Scarica Report PDF", data=pdf_bytes, file_name="Analisi_Asta.pdf")
 
         except Exception as e:
             st.error(f"Errore durante l'analisi: {e}")
+            st.info("Nota: Assicurati che la chiave API sia attiva in Google AI Studio.")

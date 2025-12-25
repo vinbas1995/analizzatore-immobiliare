@@ -10,15 +10,15 @@ import re
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(
-    page_title="ASTA-SAFE V4.0 Pro Dashboard",
+    page_title="ASTA-SAFE V4.1 Pro Dashboard",
     page_icon="🏢",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # --- 2. API KEY ---
-# Assicurati di sostituire con la tua chiave API
-GEMINI_API_KEY = "TUACHIAVE_API_QUI"
+# INSERISCI QUI LA TUA CHIAVE
+GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. STILE CSS AVANZATO (NEON RADIAL GAUGE DASHBOARD) ---
@@ -26,14 +26,12 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Rajdhani:wght@700&display=swap');
     
-    /* Stile Generale della Pagina */
     html, body, [class*="css"]  { 
         font-family: 'Inter', sans-serif; 
-        background-color: #080f1a !important; /* Sfondo scuro profondo */
+        background-color: #080f1a !important; 
         color: #f1f5f9;
     }
     
-    /* Header */
     .web-header { 
         background: transparent; 
         padding: 1.5rem 2rem; 
@@ -52,14 +50,13 @@ st.markdown("""
         color: #f1f5f9;
     }
     
-    /* Card Container Generale */
     .styled-card { 
-        background: rgba(17, 24, 39, 0.8); /* Sfondo scuro semitrasparente */
+        background: rgba(17, 24, 39, 0.8); 
         padding: 25px; 
         border-radius: 15px; 
         border: 1px solid #1f2937; 
         box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        backdrop-filter: blur(4px); /* Effetto sfocatura sullo sfondo */
+        backdrop-filter: blur(4px); 
         margin-bottom: 25px;
     }
     .card-header { 
@@ -75,7 +72,6 @@ st.markdown("""
         gap: 10px; 
     }
     
-    /* --- SISTEMA GRID PER I BENCHMARK (TIPO DASHBOARD) --- */
     .benchmark-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -83,7 +79,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* --- RADIAL GAUGE CARD (IMPLEMENTAZIONE GRAFICO NEON) --- */
     .gauge-card {
         background: #111827;
         border: 1px solid #1f2937;
@@ -96,106 +91,39 @@ st.markdown("""
     }
     .gauge-card:hover { 
         transform: translateY(-5px); 
-        box-shadow: 0 10px 30px rgba(34, 197, 94, 0.2); /* Bagliore al passaggio del mouse */
+        box-shadow: 0 10px 30px rgba(34, 197, 94, 0.2); 
     }
     
-    /* Icona centrale */
-    .gauge-icon { 
-        font-size: 2rem; 
-        color: #6b7280; 
-        margin-bottom: 10px; 
-        display: block; 
-    }
+    .gauge-icon { font-size: 2rem; color: #6b7280; margin-bottom: 10px; display: block; }
     
-    /* Numero del Punteggio Centrale */
     .gauge-score {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -30%);
-        text-align: center;
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -30%); text-align: center;
     }
     .gauge-score-value {
-        font-family: 'Rajdhani', sans-serif;
-        font-size: 2.8rem;
-        font-weight: 800;
-        color: #f1f5f9;
-        line-height: 1;
+        font-family: 'Rajdhani', sans-serif; font-size: 2.8rem; font-weight: 800; color: #f1f5f9; line-height: 1;
     }
-    .gauge-score-max {
-        font-size: 1rem;
-        color: #6b7280;
-        font-weight: 400;
-    }
+    .gauge-score-max { font-size: 1rem; color: #6b7280; font-weight: 400; }
     
-    /* Etichetta Inferiore */
     .gauge-label { 
-        font-size: 0.95rem; 
-        color: #f1f5f9; 
-        font-weight: 700; 
-        text-transform: uppercase; 
-        letter-spacing: 1px; 
-        margin-top: 10px;
+        font-size: 0.95rem; color: #f1f5f9; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 10px;
     }
     
-    /* --- IMPLEMENTAZIONE GRAFICO RADIALE (PROGRESSO NEON) --- */
-    .gauge-ring-container {
-        position: relative;
-        width: 180px; /* Dimensione del cerchio */
-        height: 180px;
-        margin: 0 auto;
-    }
+    .gauge-ring-container { position: relative; width: 180px; height: 180px; margin: 0 auto; }
+    .gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .gauge-circle-bg { fill: none; stroke: #1f2937; stroke-width: 12px; }
+    .gauge-circle-prog { fill: none; stroke-width: 12px; stroke-linecap: round; transition: stroke-dashoffset 1s ease, stroke 0.3s ease; }
     
-    /* SVG per il cerchio di progresso */
-    .gauge-svg {
-        width: 100%;
-        height: 100%;
-        transform: rotate(-90deg); /* Inizio dall'alto */
-    }
+    .neon-red { stroke: #ef4444; filter: drop-shadow(0 0 6px #ef4444); }
+    .neon-orange { stroke: #f97316; filter: drop-shadow(0 0 6px #f97316); }
+    .neon-green { stroke: #22c55e; filter: drop-shadow(0 0 6px #22c55e); }
     
-    /* Cerchio di sfondo (grigio) */
-    .gauge-circle-bg {
-        fill: none;
-        stroke: #1f2937;
-        stroke-width: 12px; /* Spessore dell'anello */
-    }
-    
-    /* Cerchio di progresso (neon) */
-    .gauge-circle-prog {
-        fill: none;
-        stroke-width: 12px;
-        stroke-linecap: round;
-        transition: stroke-dashoffset 1s ease, stroke 0.3s ease; /* Animazione al caricamento */
-    }
-    
-    /* Classi Neon dinamiche per Finitura e Bagliore */
-    .neon-red { 
-        stroke: #ef4444; 
-        filter: drop-shadow(0 0 6px #ef4444); /* Bagliore Rosso Neon */
-    }
-    .neon-orange { 
-        stroke: #f97316; 
-        filter: drop-shadow(0 0 6px #f97316); /* Bagliore Arancione Neon */
-    }
-    .neon-green { 
-        stroke: #22c55e; 
-        filter: drop-shadow(0 0 6px #22c55e); /* Bagliore Verde Neon */
-    }
-    
-    /* Banner */
     .ad-banner { background: #111827; border: 2px dashed #374151; color: #6b7280; padding: 15px; text-align: center; border-radius: 8px; font-weight: 600; font-size: 0.8rem; margin: 20px 0; }
     
-    /* Button */
     .stButton>button { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); color: white; border: none; padding: 12px; font-weight: 600; border-radius: 8px; width: 100%; box-shadow: 0 4px 10px rgba(34,197,94,0.3); transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; }
     .stButton>button:hover { transform: scale(1.02); box-shadow: 0 8px 20px rgba(34,197,94,0.4); }
     
-    /* Stile input */
-    .stNumberInput, .stFileUploader {
-        border-radius: 8px;
-        background: #111827;
-        border: 1px solid #1f2937;
-        color: #f1f5f9;
-    }
+    .stNumberInput, .stFileUploader { border-radius: 8px; background: #111827; border: 1px solid #1f2937; color: #f1f5f9; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -205,7 +133,7 @@ def render_header():
     st.markdown("""
         <div class="web-header">
             <div>
-                <div class="logo-text">ASTA-SAFE <span style="color:#22c55e">V4.0</span> Pro Dashboard</div>
+                <div class="logo-text">ASTA-SAFE <span style="color:#22c55e">V4.1</span> Pro Dashboard</div>
                 <div style="font-size: 0.9rem; opacity: 0.8; color: #94a3b8;">Real Estate AI Intelligence • Enterprise Edition</div>
             </div>
             <div>
@@ -221,26 +149,16 @@ def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def render_radial_gauge(icon, label, score):
-    """Genera l'HTML per il Radial Gauge Neon di tipo Dashboard"""
     try: score = float(score)
     except: score = 0
     
-    # Logica Colori Neon Dinamici
-    if score <= 4: 
-        color_neon = "neon-red"
-    elif score <= 7: 
-        color_neon = "neon-orange"
-    else: 
-        color_neon = "neon-green"
+    if score <= 4: color_neon = "neon-red"
+    elif score <= 7: color_neon = "neon-orange"
+    else: color_neon = "neon-green"
         
-    # Calcolo Offset per cerchio di progresso (scala 1-10)
-    # Circonferenza C = 2 * pi * r. Con r=80, C = ~502.65
-    # Percentuale = (voto / 10) * Circonferenza. dash-offset = Circonferenza - Percentuale.
     max_score = 10
-    circle_circumference = 502.65  # C = 2 * PI * 80
-    score_scaled = min(max(score, 0), 10) # Assicuriamo che il voto sia tra 0 e 10
-    
-    # Calcolo della lunghezza del progresso
+    circle_circumference = 502.65
+    score_scaled = min(max(score, 0), 10)
     progress_offset = circle_circumference - (score_scaled / max_score) * circle_circumference
     
     html = f"""
@@ -248,16 +166,12 @@ def render_radial_gauge(icon, label, score):
         <div class="gauge-ring-container">
             <svg class="gauge-svg" viewBox="0 0 180 180">
                 <circle class="gauge-circle-bg" cx="90" cy="90" r="80" />
-                <circle class="gauge-circle-prog {color_neon}" cx="90" cy="90" r="80" 
-                    stroke-dasharray="{circle_circumference}" 
-                    stroke-dashoffset="{progress_offset}" />
+                <circle class="gauge-circle-prog {color_neon}" cx="90" cy="90" r="80" stroke-dasharray="{circle_circumference}" stroke-dashoffset="{progress_offset}" />
             </svg>
-            
             <div class="gauge-score">
                 <span class="gauge-score-value">{score_scaled}</span><span class="gauge-score-max">/{max_score}</span>
             </div>
         </div>
-        
         <span class="gauge-icon">{icon}</span>
         <div class="gauge-label">{label}</div>
     </div>
@@ -273,168 +187,25 @@ def estrai_pdf(file, tipo):
             t = page.get_text()
             text += t
     except: return f" Errore {tipo} "
-    return f"\n\n--- DOCUMENTO: {tipo} ---\n{text[:15000]}" # Limitiamo caratteri per efficienza
+    return f"\n\n--- DOCUMENTO: {tipo} ---\n{text[:15000]}"
 
-def trova_modello_disponibile():
-    """Trova automaticamente il modello Gemini funzionante"""
+def trova_modello_sicuro():
+    """Tenta di forzare un modello funzionante anche con librerie vecchie"""
     try:
-        modelli = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        preferiti = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']
-        for p in preferiti:
-            if p in modelli: return p
-        return modelli[0] if modelli else None
-    except: return None
+        # Tenta prima di vedere se i modelli moderni sono nella lista
+        models = [m.name for m in genai.list_models()]
+        if 'models/gemini-1.5-flash' in models:
+            return 'models/gemini-1.5-flash'
+        elif 'models/gemini-pro' in models:
+            return 'models/gemini-pro'
+        
+        # Se la lista è vuota o strana (bug libreria vecchia), FORZA gemini-pro
+        return 'gemini-pro'
+    except:
+        # Se crasha proprio list_models(), FORZA gemini-pro
+        return 'gemini-pro'
 
 # --- 5. LOGICA APPLICAZIONE ---
 
 render_header()
-render_banner("TOP LEADERBOARD DASHBOARD", "90px")
-
-# INPUT SECTION (Card scura)
-st.markdown('<div class="styled-card"><div class="card-header">📊 Parametri e Documentazione d\'Ingresso</div>', unsafe_allow_html=True)
-col_param, col_up = st.columns([1, 2])
-
-with col_param:
-    st.markdown("**Dati Economici Asta**")
-    base = st.number_input("Base d'Asta (€)", value=100000, step=1000, key="asta_base")
-    offerta = st.number_input("Offerta Minima (€)", value=75000, step=1000, key="asta_offerta")
-    st.caption("Questi dati servono per calcolare la convenienza d'investimento.")
-
-with col_up:
-    st.markdown("**Caricamento Documenti (Formato PDF)**")
-    c1, c2 = st.columns(2)
-    f_perizia = c1.file_uploader("1. Perizia CTU (Principale)", type="pdf", key="up_perizia")
-    f_plan = c2.file_uploader("2. Planimetria", type="pdf", key="up_planimetria")
-    f_avviso = c1.file_uploader("3. Avviso Vendita", type="pdf", key="up_avviso")
-    f_catasto = c2.file_uploader("4. Visura Catastale / Dati", type="pdf", key="up_catasto")
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ACTION BUTTON (NEON GREEN)
-if f_perizia or f_plan or f_avviso or f_catasto:
-    if st.button("🚀 AVVIA ANALISI PROFONDA AI V4.0 PRO"):
-        with st.spinner("🕵️ L'Intelligenza Artificiale sta analizzando la documentazione..."):
-            
-            # 1. Raccolta Testo da tutti i documenti
-            corpus = ""
-            corpus += estrai_pdf(f_perizia, "PERIZIA CTU")
-            corpus += estrai_pdf(f_plan, "PLANIMETRIA")
-            corpus += estrai_pdf(f_avviso, "AVVISO VENDITA")
-            corpus += estrai_pdf(f_catasto, "VISURA CATASTALE")
-            
-            # 2. Selezione Modello (Auto-fix per 404)
-            modello_nome = trova_modello_disponibile()
-            if not modello_nome:
-                st.error("ERRORE API Google: Nessun modello disponibile supportato dalla tua chiave API. Aggiorna libreria `pip install -U google-generativeai`.")
-                st.stop()
-                
-            model = genai.GenerativeModel(modello_nome)
-            
-            # 3. Prompt Esteso (7 Indicatori Strutturati per i Grafici Neon)
-            prompt = f"""
-            Agisci come Senior Real Estate Analyst. Analizza severamente e professionalmente questi documenti d'asta immobiliare italiana.
-            
-            OUTPUT RICHIESTO (JSON + MARKDOWN) separati esattamente dalla stringa "###SEP###".
-            
-            PARTE 1: JSON con 7 chiavi esatte, per voti da 1 (Pessimo/Rischio Estremo) a 10 (Ottimo/Sicuro/Affare).
-            Keys (Esaustive):
-            - "urb": Conformità Urbanistica, abusi, sanabilità, costi sanatoria.
-            - "occ": Stato Occupativo, titolo opponibile, tempo liberazione stimato.
-            - "leg": Vincoli Legali, pignoramenti, servitù, diritti di terzi.
-            - "eco": Convenienza Economica, Prezzo vs Valore stimato/mercato.
-            - "man": Stato Manutentivo, lavori da fare citati in perizia.
-            - "riv": Rivendibilità/Liquidità, facilità di vendita futura in base a zona/stato.
-            - "doc": Completezza Documentale, chiarezza perizia e presenza allegati.
-            
-            PARTE 2: Report Markdown Professionale Dettagliato.
-            - Analisi specifica per ogni indicatore sopra.
-            - Sezione "COSTI OCCULTI" se presenti.
-            - Conclusione finale con rating globale: "Go", "Cautela", o "No-Go".
-            
-            DATI INPUT ASTA: Base €{base}, Offerta €{offerta}.
-            TESTO DOCUMENTI (estratto): {corpus[:32000]}
-            """
-            
-            try:
-                resp = model.generate_content(prompt).text
-                
-                # Parsing della risposta (JSON per grafici e MD per testo)
-                if "###SEP###" in resp:
-                    raw_json, raw_md = resp.split("###SEP###")
-                    # Pulizia da possibili tag markdown code blocks
-                    clean_json = re.sub(r'```json|```', '', raw_json).strip()
-                    try: 
-                        d = json.loads(clean_json)
-                    except Exception as e: 
-                        st.warning(f"Errore parsing JSON dei voti. Uso valori fallback. Dettaglio: {e}")
-                        d = {"urb":5, "occ":5, "leg":5, "eco":5, "man":5, "riv":5, "doc":5}
-                    report = raw_md
-                else:
-                    st.warning("L'IA non ha restituito il formato separato richiesto. Mostro analisi testuale grezza.")
-                    d = {"urb":0, "occ":0, "leg":0, "eco":0, "man":0, "riv":0, "doc":0} # Nessun grafico
-                    report = resp
-                
-                # --- 4. VISUALIZZAZIONE RISULTATI (IMPLEMENTAZIONE DASHBOARD GRAFICA) ---
-                st.markdown("---")
-                
-                # Sezione Benchmark Visivo Neon Radial Gauges
-                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">🏆 Dashboard Scorecard di Rischio Integrata (Benchmark AI)</div>', unsafe_allow_html=True)
-                st.markdown('<p style="color:#cbd5e1; font-size:0.85rem; margin-top:-15px; margin-bottom:20px;">Nota: Punteggi bassi (rosso/arancione) indicano criticità o alto rischio. Punteggi alti (verde) indicano sicurezza o opportunità.</p>', unsafe_allow_html=True)
-                
-                # Generazione della Griglia HTML con i nuovi Grafici Neon Radial
-                html_grid = f"""
-                <div class="benchmark-grid">
-                    {render_radial_gauge("🏗️", "Urbanistica", d.get('urb', 0))}
-                    {render_radial_gauge("🏠", "Occupazione", d.get('occ', 0))}
-                    {render_radial_gauge("⚖️", "Vincoli Legali", d.get('leg', 0))}
-                    {render_radial_gauge("💰", "Economia", d.get('eco', 0))}
-                    {render_radial_gauge("🛠️", "Manutenzione", d.get('man', 0))}
-                    {render_radial_gauge("📈", "Rivendibilità", d.get('riv', 0))}
-                    {render_radial_gauge("📑", "Documenti", d.get('doc', 0))}
-                </div>
-                """
-                st.markdown(html_grid, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Banner pubblicitario in mezzo
-                render_banner("MID REPORT DASHBOARD", "100px")
-                
-                # Report Testuale dettagliato
-                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">📝 Analisi Dettagliata Multidocumentale Semantica</div>', unsafe_allow_html=True)
-                st.markdown(report)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # PDF Download professionale
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                # Pulizia caratteri speciali Markdown per FPDF
-                sanitized_report = clean_text(report.replace("**", "").replace("#", "").replace("###", ""))
-                pdf.multi_cell(0, 8, sanitized_report)
-                
-                pdf_bytes = pdf.output(dest='S').encode('latin-1')
-                
-                st.download_button(
-                    label="📥 SCARICA REPORT PRO UFFICIALE (PDF)",
-                    data=pdf_bytes,
-                    file_name="Analisi_Asta_Integrata_Full.pdf",
-                    mime="application/pdf",
-                    key="btn_download_pdf"
-                )
-                
-            except Exception as e:
-                st.error(f"Si è verificato un errore critico durante l'analisi AI o la generazione dei risultati: {e}")
-
-else:
-    st.info("Attesa caricamento documentazione... Carica almeno un file (es. la Perizia) per abilitare l'analisi AI.")
-
-# Footer Dashboard
-render_banner("FOOTER DASHBOARD PAGE", "120px")
-st.markdown("""
-<div style='text-align:center; padding:30px; color:#6b7280; font-size:0.85rem;'>
-    ASTA-SAFE AI Dashboard V4.0 Pro • Enterprise AI Solutions per il Real Estate<br>
-    Avviso: Questo strumento utilizza l'Intelligenza Artificiale per supportare l'analisi e il rating di rischio immobiliare, ma non sostituisce il parere professionale di un esperto legale o tecnico abilitato. Verificare sempre la documentazione ufficiale sul Portale delle Vendite Pubbliche.
-</div>
-""", unsafe_allow_html=True)
+render_banner

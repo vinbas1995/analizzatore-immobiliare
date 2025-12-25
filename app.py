@@ -5,261 +5,382 @@ from PIL import Image
 import io
 import google.generativeai as genai
 from fpdf import FPDF
+import json # Importante per il parsing dei voti
+import re
 
-# --- 1. CONFIGURAZIONE PAGINA E STILE ---
+# --- CONFIGURAZIONE PAGINA (Deve essere la prima istruzione) ---
 st.set_page_config(
-    page_title="ASTA-SAFE AI | Analisi Immobiliare Pro",
+    page_title="ASTA-SAFE AI | Portale Analisi Professionale",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed" # Sidebar chiusa per default per focus su UI web
 )
 
-# CSS Personalizzato per look professionale (Stile Enterprise)
+# --- SETUP API KEY ---
+# Inserita direttamente come richiesto
+GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
+genai.configure(api_key=GEMINI_API_KEY)
+
+# ==========================================
+# --- STILE CSS AVANZATO (UI WEB PRO) ---
+# ==========================================
 st.markdown("""
     <style>
-    /* Colori e Font */
-    .main {
-        background-color: #f8f9fa;
-    }
-    h1 {
-        color: #2c3e50;
-        font-family: 'Helvetica Neue', sans-serif;
-        font-weight: 700;
-    }
-    h2, h3 {
-        color: #34495e;
-    }
+    /* Reset e Font globale */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     
-    /* Stile Banner Pubblicitari */
-    .ad-container {
-        background-color: #e9ecef;
-        border: 2px dashed #adb5bd;
-        color: #6c757d;
-        text-align: center;
-        padding: 20px;
-        margin: 15px 0;
-        border-radius: 8px;
-        font-weight: bold;
-        font-size: 0.9em;
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif;
+        background-color: #f4f7f6 !important;
     }
-    
-    /* Card per i risultati */
-    .result-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        border-left: 5px solid #2ecc71;
-    }
-    
-    /* Bottone Personalizzato */
-    .stButton>button {
-        background-color: #2980b9;
+
+    /* Nasconde elementi standard Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+
+    /* --- HEADER WEB --- */
+    .web-header {
+        background-color: #111827; /* Dark blue/gray */
+        padding: 1rem 2rem;
         color: white;
-        border-radius: 5px;
-        height: 3em;
-        width: 100%;
-        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 4px solid #3b82f6;
+        margin-bottom: 2rem;
+        position: fixed; top: 0; left: 0; width: 100%; z-index: 999;
+    }
+    .logo-area { display: flex; align-items: center; gap: 10px; }
+    .logo-text { font-size: 1.5rem; font-weight: 700; letter-spacing: -1px; }
+    .logo-sub { color: #9ca3af; font-size: 0.9rem; }
+    .nav-links { display: flex; gap: 20px; font-size: 0.9rem; color: #d1d5db; }
+
+    /* Spaziatura per header fisso */
+    .main-content { margin-top: 80px; padding-bottom: 100px; }
+
+    /* --- CARD STILIZZATE --- */
+    .styled-card {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        margin-bottom: 1.5rem;
+        border: 1px solid #e5e7eb;
+    }
+    .card-title {
+        color: #1f2937;
+        font-weight: 700;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+        display: flex; align-items: center; gap: 10px;
+    }
+
+    /* --- PULSANTI UI --- */
+    .stButton>button {
+        background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
+        color: white;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-weight: 600;
         border: none;
+        width: 100%;
+        transition: all 0.3s;
+        text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem;
     }
     .stButton>button:hover {
-        background-color: #1a5276;
+        background: linear-gradient(90deg, #1d4ed8 0%, #1e40af 100%);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        transform: translateY(-1px);
+    }
+
+    /* --- GRAFICA BENCHMARK (Progress Bars) --- */
+    .benchmark-container { margin-top: 1rem; }
+    .metric-row { margin-bottom: 1rem; }
+    .metric-label-area { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .metric-name { font-weight: 600; color: #4b5563; font-size: 0.9rem; }
+    .metric-value { font-weight: 700; font-size: 1rem; }
+    
+    .bar-bg {
+        background-color: #e5e7eb;
+        border-radius: 999px;
+        height: 12px;
+        width: 100%;
+        overflow: hidden;
+    }
+    .bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease-in-out; }
+    
+    /* Colori dinamici classi CSS */
+    .critical { background-color: #ef4444; } /* Rosso */
+    .warning { background-color: #f97316; }  /* Arancione */
+    .good { background-color: #22c55e; }     /* Verde */
+
+    /* --- BANNER AREA --- */
+    .ad-placeholder {
+        background-color: #f9fafb;
+        border: 2px dashed #d1d5db;
+        border-radius: 8px;
+        color: #6b7280;
+        text-align: center;
+        padding: 1rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin: 1rem 0;
+    }
+
+    /* --- FOOTER WEB --- */
+    .web-footer {
+        background-color: #1f2937;
+        color: #9ca3af;
+        padding: 3rem 2rem;
+        margin-top: 4rem;
+        text-align: center;
+        border-top: 1px solid #374151;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. SETUP API ---
-# Chiave API inserita direttamente nel codice
-GEMINI_API_KEY = "AIzaSyDIgbUDRHLRPX0A4XdrTbaj7HF6zuCSj88"
-genai.configure(api_key=GEMINI_API_KEY)
+# ==========================================
+# --- COMPONENTI HTML (COMPONENTI UI) ---
+# ==========================================
 
-# --- 3. FUNZIONI DI UTILITÀ ---
+def render_header():
+    st.markdown("""
+        <div class="web-header">
+            <div class="logo-area">
+                <span style="font-size: 2rem;">🛡️</span>
+                <div>
+                    <div class="logo-text">ASTA-SAFE<span style="color:#3b82f6">AI</span></div>
+                    <div class="logo-sub">Professional Due Diligence</div>
+                </div>
+            </div>
+            <div class="nav-links">
+                <span>Analisi</span>
+                <span>Report</span>
+                <span>Prezzi</span>
+                <span style="color:white; font-weight:600">Account Pro</span>
+            </div>
+        </div>
+        <div class="main-content"></div>
+    """, unsafe_allow_html=True)
 
-def render_ad_space(position_name, height="100px"):
-    """Funzione per inserire spazi pubblicitari HTML"""
-    # In produzione, sostituisci questo HTML con lo script di Google Adsense
-    html_code = f"""
-    <div class="ad-container" style="height: {height}; display: flex; align-items: center; justify-content: center;">
-        <div>
-            SPAZIO PUBBLICITARIO - {position_name}<br>
-            <small>(Inserisci qui il codice AdSense/Banner)</small>
+def render_footer():
+    st.markdown("""
+        <div class="web-footer">
+            <div style="font-weight:700; color:white; margin-bottom:1rem;">ASTA-SAFE AI Technologies</div>
+            <div style="font-size:0.85rem; margin-bottom:2rem;">
+                Strumenti avanzati di Intelligenza Artificiale per il Real Estate Giudiziario.<br>
+                Via Roma 1, Milano | info@astasafe.ai
+            </div>
+            <div style="font-size:0.75rem; color:#6b7280;">
+                © 2024 Tutti i diritti riservati. L'analisi AI non sostituisce il parere legale/tecnico di un professionista abilitato.
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+def render_ad_space(height="90px", label="Banner"):
+    st.markdown(f"""
+        <div class="ad-placeholder" style="height: {height}; display:flex; align-items:center; justify-content:center;">
+            AREA PUBBLICITARIA - {label}<br>
+            (Inserisci codice AdSense qui)
+        </div>
+    """, unsafe_allow_html=True)
+
+def render_benchmark_bar(name, value):
+    """Genera l'HTML per una barra di benchmark stilizzata"""
+    try:
+        val = float(value)
+        percent = val * 10 # Converti scala 1-10 in percentuale
+    except:
+        val = 0
+        percent = 0
+        
+    # Determina il colore
+    color_class = "good"
+    if val <= 4: color_class = "critical"
+    elif val <= 7: color_class = "warning"
+    
+    html = f"""
+    <div class="metric-row">
+        <div class="metric-label-area">
+            <span class="metric-name">{name}</span>
+            <span class="metric-value {color_class}-text">{val}/10</span>
+        </div>
+        <div class="bar-bg">
+            <div class="bar-fill {color_class}" style="width: {percent}%;"></div>
         </div>
     </div>
     """
-    st.markdown(html_code, unsafe_allow_html=True)
+    return html
+
+# ==========================================
+# --- FUNZIONI LOGICHE (BACKEND) ---
+# ==========================================
 
 def clean_text(text):
-    """Pulisce il testo per evitare errori nel PDF"""
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def estrai_testo_ottimizzato(file_pdf):
-    """Estrae testo da PDF ibridi (Testo + Immagini)"""
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
     testo_risultato = ""
-    
-    # Progress bar visuale per l'utente
-    progress_bar = st.progress(0)
-    total_pages = min(len(doc), 30) # Analizza max 30 pagine per velocità
-    
+    # Analizziamo max 20 pagine per velocizzare UI pro
+    progress_bar = st.progress(0, text="Lettura PDF...")
+    total = min(len(doc), 20)
     for i, pagina in enumerate(doc):
-        if i >= 30: break 
-        
-        # Aggiorna barra progresso
-        progress_bar.progress((i + 1) / total_pages)
-        
+        if i >= 20: break 
+        progress_bar.progress((i + 1) / total, text=f"Elaborazione pagina {i+1}/{total}...")
         t = pagina.get_text()
-        # Se c'è poco testo, prova OCR (utile per perizie scansionate male)
         if len(t) < 150: 
             try:
-                pix = pagina.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                pix = pagina.get_pixmap(matrix=fitz.Matrix(1.3, 1.3))
                 img = Image.open(io.BytesIO(pix.tobytes()))
                 t = pytesseract.image_to_string(img, lang='ita')
-            except:
-                t = " [Testo non leggibile in questa pagina] "
+            except: t = ""
         testo_risultato += t
-        
-    progress_bar.empty() # Rimuovi barra alla fine
+    progress_bar.empty()
     return testo_risultato
 
-# --- 4. LAYOUT SIDEBAR ---
-with st.sidebar:
-    # Logo fittizio
-    st.image("https://cdn-icons-png.flaticon.com/512/2642/2642232.png", width=60)
-    st.markdown("### 🛡️ ASTA-SAFE Config")
+# ==========================================
+# --- CORPO DELLA PAGINA (UI MAIN) ---
+# ==========================================
+
+# 1. Render Header Professionale
+render_header()
+
+# Layout principale a colonne (Contenuto al centro, banner ai lati se desiderato, qui usiamo full width)
+container = st.container()
+
+with container:
+    # --- AREA HEADER TITOLO ---
+    cols_tit = st.columns([3, 1])
+    with cols_tit[0]:
+        st.markdown("<h1>Dashboard Analisi Perizie</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#6b7280; margin-top:-15px;'>Carica il documento CTU per ottenere istantaneamente il rating di rischio e l'analisi semantica dell'IA.</p>", unsafe_allow_html=True)
+    with cols_tit[1]:
+         render_ad_space(height="70px", label="Sponsor Top")
+
     st.markdown("---")
-    
-    st.markdown("#### 💰 Parametri Economici")
-    prezzo_base = st.number_input("Base d'Asta (€)", value=100000, step=1000, format="%d")
-    offerta_min = st.number_input("Offerta Minima (€)", value=75000, step=1000, format="%d")
-    
-    st.markdown("---")
-    
-    # --- BANNER SIDEBAR ---
-    render_ad_space("BANNER SIDEBAR (Verticale)", height="300px")
-    
-    st.info("💡 Suggerimento: Carica file PDF < 20MB per prestazioni ottimali.")
-    st.caption("© 2024 ASTA-SAFE AI Pro")
 
-# --- 5. LAYOUT PRINCIPALE ---
+    # --- LAYOUT INPUT (2 Colonne) ---
+    col_in1, col_in2 = st.columns([1, 2])
 
-# Header
-st.title("🛡️ ASTA-SAFE AI")
-st.subheader("Analisi Intelligente Perizie Immobiliari")
-st.markdown("Carica la perizia CTU e ottieni in pochi secondi un'analisi dei rischi legali, urbanistici ed economici.")
+    with col_in1:
+        st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">💰 Dati Asta</div>', unsafe_allow_html=True)
+        prezzo_base = st.number_input("Prezzo Base (€)", value=100000, step=5000)
+        offerta_min = st.number_input("Offerta Minima (€)", value=75000, step=5000)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        render_ad_space(height="200px", label="Banner Laterale")
 
-# --- BANNER TOP ---
-render_ad_space("BANNER TOP (Orizzontale)", height="90px")
-
-# Area di Upload
-st.markdown("### 📂 Caricamento Documentazione")
-uploaded_file = st.file_uploader("", type="pdf", help="Trascina qui la perizia ufficiale")
-
-if uploaded_file:
-    # Layout a due colonne per il pulsante
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        st.write("") # Spaziatura
-        st.write("") 
-        analyze_btn = st.button("🚀 AVVIA ANALISI COMPLETA")
-    with col2:
+    with col_in2:
+        st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">📂 Caricamento Documento</div>', unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("Trascina qui la Perizia CTU (PDF)", type="pdf")
+        
         st.write("")
-        if analyze_btn:
-             st.success("File ricevuto. Elaborazione in corso...")
+        if uploaded_file:
+            st.info(f"📄 Documento caricato: {uploaded_file.name}")
+            analyze_btn = st.button("🚀 AVVIA ELABORAZIONE IA PRO")
+        else:
+            analyze_btn = False
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if analyze_btn:
+    # --- AREA RISULTATI ---
+    if uploaded_file and analyze_btn:
         try:
-            with st.spinner("🕵️‍♂️ L'IA sta leggendo la perizia (OCR + Analisi Semantica)..."):
+            with st.spinner("🧠 L'Intelligenza Artificiale sta analizzando il documento..."):
                 
-                # 1. Selezione Modello Dinamica
+                # 1. Estrazione
+                uploaded_file.seek(0)
+                testo_perizia = estrai_testo_ottimizzato(uploaded_file)
+                
+                if not testo_perizia or len(testo_perizia) < 100:
+                    st.error("Impossibile estrarre testo sufficiente dal PDF. Verifica che non sia protetto o danneggiato.")
+                    st.stop()
+
+                # 2. Configurazione Modello
                 available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                 modello_scelto = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in available_models else available_models[0]
                 model = genai.GenerativeModel(modello_scelto)
                 
-                # 2. Estrazione Testo
-                uploaded_file.seek(0) # Reset puntatore file
-                testo_perizia = estrai_testo_ottimizzato(uploaded_file)
-                
-                # Controllo se il testo è vuoto
-                if len(testo_perizia) < 50:
-                    st.error("Non sono riuscito a leggere il testo. Il PDF potrebbe essere un'immagine scannerizzata di bassa qualità.")
-                    st.stop()
-
-                # 3. Prompt Strategico per l'AI
+                # 3. PROMPT AVANZATO (Output strutturato per grafici)
+                # Chiediamo specificamente un blocco JSON separato dall'analisi testuale
                 prompt = f"""
-                Agisci come un esperto consulente legale e immobiliare per aste giudiziarie italiane.
-                Analizza il testo estratto dalla perizia seguente.
-                
-                Genera un REPORT STRUTTURATO in Markdown con le seguenti sezioni:
-                
-                1. **🚦 RATING DI RISCHIO (Tabella riassuntiva)**
-                   - Assegna un voto da 1 (Critico) a 10 (Sicuro) per: Urbanistica, Stato Occupativo, Vincoli Legali, Costi Occulti.
-                
-                2. **⚠️ CRITICITÀ RILEVATE (Elenco puntato dettagliato)**
-                   - Evidenzia abusi non sanabili, inquilini con titolo opponibile, diritti di terzi, discrepanze catastali.
-                
-                3. **💰 ANALISI ECONOMICA**
-                   - Confronto Base d'Asta (€{prezzo_base}) vs Valore stimato (cerca nel testo).
-                   - Costi stimati per sanatorie o spese condominiali arretrate (se citate).
-                
-                4. **🏁 CONCLUSIONE DELL'ESPERTO**
-                   - Giudizio sintetico: "Affare", "Da Valutare con cautela" o "Sconsigliato".
-                
-                Testo Perizia (estratto): {testo_perizia[:25000]}
+                Analizza questa perizia giudiziaria italiana.
+                Genera DUE blocchi distinti nella risposta, separati da "==SEPARATOR==".
+
+                BLOCCO 1 (SOLO JSON):
+                Un oggetto JSON con i voti da 1 a 10 (1 critico, 10 sicuro) per queste categorie. Usa esattamente queste chiavi:
+                "urbanistico", "occupazione", "legale", "economico".
+
+                BLOCCO 2 (MARKDOWN):
+                Un'analisi professionale dettagliata che giustifica i voti, evidenziando abusi, stati di occupazione, vincoli e costi occulti.
+
+                Dati asta: Base €{prezzo_base}, Minima €{offerta_min}.
+                Testo (estratto): {testo_perizia[:20000]}
                 """
                 
                 response = model.generate_content(prompt)
-                analisi_testo = response.text
+                full_response = response.text
 
-                # 4. Visualizzazione Risultati
+                # 4. Parsing della Risposta
+                try:
+                    json_part, md_part = full_response.split("==SEPARATOR==")
+                    # Pulisce eventuali markdown code blocks attorno al json
+                    json_clean = re.sub(r'```json\s*|```', '', json_part.strip())
+                    voti_data = json.loads(json_clean)
+                except Exception as parse_err:
+                    st.warning("Errore nel parsing dei voti visivi. Mostro solo l'analisi testuale.")
+                    voti_data = None
+                    md_part = full_response # Fallback
+
                 st.markdown("---")
+                st.markdown("<h2>📊 Report Finale di Due Diligence</h2>", unsafe_allow_html=True)
                 
-                # Container stilizzato per il risultato
-                st.markdown('<div class="result-card">', unsafe_allow_html=True)
-                st.markdown("## 📊 Risultato Analisi")
-                st.markdown(analisi_testo)
+                render_ad_space(height="90px", label="Sponsor Mid-Content")
+
+                # --- Visualizzazione Grafica (Card dedicata) ---
+                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+                st.markdown('<div class="card-title">📈 Benchmark Rischio (Voto 1-10)</div>', unsafe_allow_html=True)
+                st.markdown('<p style="color:#6b7280; font-size:0.85rem;">Nota: Punteggi bassi indicano alto rischio/criticità.</p>', unsafe_allow_html=True)
+                
+                if voti_data:
+                    col_g1, col_g2 = st.columns(2)
+                    with col_g1:
+                        st.markdown(render_benchmark_bar("Rischio Urbanistico (Abusi)", voti_data.get("urbanistico", 0)), unsafe_allow_html=True)
+                        st.markdown(render_benchmark_bar("Stato Occupativo", voti_data.get("occupazione", 0)), unsafe_allow_html=True)
+                    with col_g2:
+                        st.markdown(render_benchmark_bar("Vincoli Legali / Servitù", voti_data.get("legale", 0)), unsafe_allow_html=True)
+                        st.markdown(render_benchmark_bar("Oneri Economici Condominiali", voti_data.get("economico", 0)), unsafe_allow_html=True)
+                else:
+                    st.error("Impossibile generare il grafico visivo dei benchmark.")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                # --- Visualizzazione Testuale (Card dedicata) ---
+                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+                st.markdown('<div class="card-title">📝 Analisi Dettagliata IA</div>', unsafe_allow_html=True)
+                st.markdown(md_part)
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                # --- BANNER MIDDLE (Tra analisi e download) ---
-                st.write("")
-                render_ad_space("BANNER IN-CONTENT", height="90px")
-                
-                # 5. Export PDF
+                # --- EXPORT PDF ---
                 pdf = FPDF()
                 pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                
-                # Intestazione PDF
                 pdf.set_font("Arial", 'B', 16)
-                pdf.cell(0, 10, "Report Analisi ASTA-SAFE AI", 0, 1, 'C')
+                pdf.cell(0, 10, clean_text("Report ASTA-SAFE AI Pro"), 0, 1, 'C')
                 pdf.ln(10)
-                
-                # Corpo PDF
                 pdf.set_font("Arial", size=11)
-                # Pulizia caratteri speciali Markdown per il PDF
-                testo_pdf = clean_text(analisi_testo.replace("**", "").replace("##", "").replace("#", ""))
-                pdf.multi_cell(0, 8, txt=testo_pdf)
-                
+                # Pulizia base markdown per PDF
+                text_for_pdf = clean_text(md_part.replace("**", "").replace("#", ""))
+                pdf.multi_cell(0, 7, txt=text_for_pdf)
                 pdf_bytes = pdf.output(dest='S').encode('latin-1')
                 
-                st.write("")
-                st.download_button(
-                    label="📥 Scarica Report Ufficiale (PDF)", 
-                    data=pdf_bytes, 
-                    file_name="Analisi_Asta_Pro.pdf",
-                    mime="application/pdf"
-                )
+                st.download_button("📥 Scarica Report PDF Legale", data=pdf_bytes, file_name=f"Analisi_Asta_{uploaded_file.name}.pdf", mime="application/pdf")
 
         except Exception as e:
-            st.error(f"Si è verificato un errore durante l'analisi: {e}")
+            st.error(f"Errore critico durante l'analisi: {e}")
 
-# --- BANNER FOOTER ---
-st.markdown("---")
-render_ad_space("BANNER FOOTER", height="120px")
-
-# Footer Legale
-st.markdown("""
-<div style="text-align: center; color: #7f8c8d; font-size: 0.8em; margin-top: 20px;">
-    AVVISO: Questo strumento utilizza Intelligenza Artificiale per supportare l'analisi ma non sostituisce il parere di un professionista.<br>
-    Verificare sempre la documentazione ufficiale sul Portale Vendite Pubbliche.
-</div>
-""", unsafe_allow_html=True)
+# 3. Render Footer Professionale
+render_footer()

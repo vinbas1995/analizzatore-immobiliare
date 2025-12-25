@@ -7,8 +7,9 @@ import google.generativeai as genai
 from fpdf import FPDF
 import json
 import re
+import os # Import os for file path handling
 
-# --- 1. CONFIGURAZIONE PAGINA ---
+# --- 1. PAGINA CONFIGURAZIONE ---
 st.set_page_config(
     page_title="ASTA-SAFE V4.0 Pro Dashboard",
     page_icon="🏢",

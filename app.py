@@ -18,15 +18,15 @@ st.set_page_config(page_title="ASTA-SAFE AI Pro", layout="wide", page_icon="⚖�
 def estrai_testo_ocr(file_pdf):
     """Estrae testo e gestisce PDF scannerizzati tramite OCR."""
     doc = fitz.open(stream=file_pdf.read(), filetype="pdf")
-    testo_finale = ""
+    testo_totale = ""
     for pagina in doc:
         t = pagina.get_text()
         if len(t) < 150: # Se la pagina sembra un'immagine
             pix = pagina.get_pixmap()
             img = Image.open(io.BytesIO(pix.tobytes()))
             t = pytesseract.image_to_string(img, lang='ita')
-        testo_finale += t
-    return testo_totale if 'testo_totale' in locals() else testo_finale
+        testo_totale += t
+    return testo_totale
 
 class ReportPDF(FPDF):
     def header(self):
@@ -43,7 +43,7 @@ with st.sidebar:
     prezzo_base = st.number_input("Prezzo Base d'Asta (€)", min_value=0, value=100000, step=5000)
     offerta_min = st.number_input("Offerta Minima (€)", min_value=0, value=75000, step=5000)
     st.divider()
-    st.info("L'IA utilizzerà questi dati per calcolare la convenienza economica dell'operazione.")
+    st.info("L'IA utilizzerà questi dati per calcolare la convenienza economica.")
 
 uploaded_file = st.file_uploader("Carica la Perizia (PDF)", type="pdf")
 
@@ -57,4 +57,4 @@ if uploaded_file:
                 # 2. Selezione Modello
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                # 3.
+                # 3. Prompt
